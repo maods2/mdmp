@@ -24,7 +24,7 @@ def plot_dag(
     label_color: str = "white",
     arrow_size: float = 4.0,
     figsize: Optional[tuple] = None
-):
+    ):
     """
     Plot DAG structure as a graph or heatmap.
 
