@@ -5,7 +5,7 @@ This module implements discount factor selection and log predictive likelihood
 computation for MDM model scoring.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -192,4 +192,123 @@ def compute_logpl(
     lpldet = np.sum(result['lpl'][nbf:])
 
     return -lpldet
+
+
+def compute_local_score(
+    data: np.ndarray,
+    adj_mat: np.ndarray,
+    node_idx: int,
+    delta: float,
+    nbf: int = DEFAULT_NBF
+) -> float:
+    """
+    Compute local (node-level) MDM score for a given node and discount factor.
+
+    This is a unified function for local scoring that can be used by learning
+    algorithms. It computes the negative log predictive likelihood for a single
+    node given its parent structure.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Time series data (T x N).
+    adj_mat : np.ndarray
+        Adjacency matrix (N x N).
+    node_idx : int
+        Index of target node.
+    delta : float
+        Discount factor (must be between 0 and 1).
+    nbf : int, optional
+        Burn-in time point. Default is 15.
+
+    Returns
+    -------
+    float
+        Negative log predictive likelihood (lower is better).
+
+    Raises
+    ------
+    ValueError
+        If node_idx is out of bounds or adj_mat dimensions don't match data.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from mdmp.scoring import compute_local_score
+    >>> data = np.random.randn(100, 3)
+    >>> adj_mat = np.zeros((3, 3))
+    >>> adj_mat[0, 1] = 1  # Node 0 is parent of node 1
+    >>> score = compute_local_score(data, adj_mat, node_idx=1, delta=0.9)
+    >>> print(score)
+    """
+    # This is essentially the same as compute_logpl, but with a clearer name
+    # for the unified interface
+    return compute_logpl(data, adj_mat, delta, node_idx, nbf)
+
+
+def compute_structure_score(
+    data: np.ndarray,
+    adj_mat: np.ndarray,
+    nbf: int = DEFAULT_NBF,
+    delta: Optional[np.ndarray] = None,
+    cache: Optional[Dict[str, Any]] = None
+) -> float:
+    """
+    Compute total MDM score for a given structure.
+
+    This is a unified function to compute the total score (sum of log predictive
+    likelihoods) for an entire adjacency matrix. It can be used by any learning
+    algorithm to evaluate candidate structures.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Time series data (T x N).
+    adj_mat : np.ndarray
+        Adjacency matrix (N x N).
+    nbf : int, optional
+        Burn-in time point. Default is 15.
+    delta : np.ndarray, optional
+        Sequence of discount factors. Default is np.arange(0.5, 1.01, 0.01).
+    cache : dict, optional
+        Optional cache dictionary to store intermediate results. If provided,
+        the function will check for cached results using the adjacency matrix
+        as a key (converted to tuple for hashing). This can speed up repeated
+        evaluations during search.
+
+    Returns
+    -------
+    float
+        Total score (sum of maximum log predictive likelihoods across all nodes).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from mdmp.scoring import compute_structure_score
+    >>> data = np.random.randn(100, 3)
+    >>> adj_mat = np.zeros((3, 3))
+    >>> adj_mat[0, 1] = 1
+    >>> score = compute_structure_score(data, adj_mat)
+    >>> print(score)
+    """
+    if delta is None:
+        delta = get_default_delta()
+
+    # Check cache if provided
+    if cache is not None:
+        # Use adjacency matrix as key (convert to tuple for hashing)
+        adj_key = tuple(adj_mat.flatten())
+        if adj_key in cache:
+            return cache[adj_key]
+
+    # Compute score using select_discount_factors
+    df_result = select_discount_factors(data, adj_mat, nbf=nbf, delta=delta)
+    total_score = np.sum([np.max(df_result['lpldet'][:, i]) for i in range(data.shape[1])])
+
+    # Store in cache if provided
+    if cache is not None:
+        adj_key = tuple(adj_mat.flatten())
+        cache[adj_key] = total_score
+
+    return total_score
 
