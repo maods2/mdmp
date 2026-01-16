@@ -23,7 +23,8 @@ def plot_dag(
     node_color: str = "steelblue",
     label_color: str = "white",
     arrow_size: float = 4.0,
-    figsize: Optional[tuple] = None
+    figsize: Optional[tuple] = None,
+    layout_seed: Optional[int] = 0
     ):
     """
     Plot DAG structure as a graph or heatmap.
@@ -48,6 +49,8 @@ def plot_dag(
         Size of arrow heads. Default is 4.0.
     figsize : tuple, optional
         Figure size. Default is (8, 8).
+    layout_seed : int, optional
+        Random seed for graph layout. Use None for non-deterministic layout.
 
     Returns
     -------
@@ -104,7 +107,7 @@ def plot_dag(
                     edges.append((i, j))
 
         # Layout
-        pos = nx.spring_layout(G, k=1.5, iterations=50)
+        pos = nx.spring_layout(G, k=1.5, iterations=50, seed=layout_seed)
         
         # Draw nodes
         nx.draw_networkx_nodes(
@@ -123,7 +126,7 @@ def plot_dag(
         labels = {i: node_labels[i] for i in range(n)}
         nx.draw_networkx_labels(
             G, pos, labels, ax=ax,
-            font_color=label_color, font_weight='bold', font_size=10
+            font_color=label_color, font_weight='bold', font_size=5
         )
         
         ax.set_title('DAG Structure', fontsize=14)
