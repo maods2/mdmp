@@ -5,19 +5,20 @@ This module implements the main MDM class that coordinates structure learning,
 discount factor selection, filtering, and smoothing.
 """
 
+from typing import Any, Dict, Optional, Union
+
 import numpy as np
 import pandas as pd
 from scipy import stats
-from typing import Union, Optional, List, Dict, Any
+
 from .dlm import dlm_filter, dlm_smooth
+from .scoring import select_discount_factors
 from .structure import StructureLearner
-from .scoring import select_discount_factors, compute_logpl
 from .utils import (
     build_design_matrix,
-    extract_target_series,
     build_parameter_names,
+    extract_target_series,
     get_default_delta,
-    DEFAULT_NBF
 )
 
 
@@ -60,16 +61,45 @@ class MDM:
             Multivariate time series data. Rows represent time points,
             columns represent nodes. Must be complete (no missing values).
         method : str, optional
-            Method for structure learning. Options: "hc", "tabu", "mmhc", "h2pc", "rsmax2", "ipa".
+            Method for structure learning. Options: "hc", "tabu", "ipa".
             Default is "hc".
+            
+            Note: Methods "mmhc", "h2pc", and "rsmax2" are not yet implemented.
         nbf : int, optional
             Burn-in time point for log predictive likelihood calculation. Default is 15.
         delta : np.ndarray, optional
             Sequence of discount factors for optimization. Default is np.arange(0.5, 1.01, 0.01).
+            All values must be between 0 and 1.
         verbose : bool, optional
             Whether to print progress messages. Default is True.
         **kwargs
             Additional arguments passed to StructureLearner (e.g., gobnilp_path for IPA method).
+        
+        Raises
+        ------
+        TypeError
+            If data is not a numpy array or pandas DataFrame.
+        ValueError
+            If data dimensions are invalid, delta values are out of range, or
+            structure learning method is invalid.
+        ImportError
+            If method="hc" and pgmpy is not installed (install with: pip install mdmp[hc]).
+        NotImplementedError
+            If method="ipa" (not yet implemented).
+        
+        Examples
+        --------
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from mdmp import MDM
+        >>> # Create sample data
+        >>> data = np.random.randn(100, 3)
+        >>> # Fit MDM model
+        >>> model = MDM(data, method="hc", nbf=15, verbose=False)
+        >>> # Access results
+        >>> print(model.adj_mat.shape)
+        (3, 3)
+        >>> print(model.DF['DF_hat'])
         """
         # Convert input to numpy array
         if isinstance(data, pd.DataFrame):
@@ -77,10 +107,22 @@ class MDM:
             data = data.values
         elif isinstance(data, np.ndarray):
             if data.ndim != 2:
-                raise ValueError("data must be a 2D array (T x N)")
+                raise ValueError(
+                    f"data must be a 2D array (T x N), got {data.ndim}D array with shape {data.shape}"
+                )
+            if data.shape[0] < 2:
+                raise ValueError(
+                    f"data must have at least 2 time points, got {data.shape[0]}"
+                )
+            if data.shape[1] < 1:
+                raise ValueError(
+                    f"data must have at least 1 variable, got {data.shape[1]}"
+                )
             self.node_names = [f"V{i+1}" for i in range(data.shape[1])]
         else:
-            raise TypeError("data must be a numpy array or pandas DataFrame")
+            raise TypeError(
+                f"data must be a numpy array or pandas DataFrame, got {type(data).__name__}"
+            )
 
         self.data = data
         self.verbose = verbose
@@ -88,6 +130,13 @@ class MDM:
 
         if delta is None:
             delta = get_default_delta()
+        else:
+            if not isinstance(delta, np.ndarray):
+                raise TypeError(f"delta must be a numpy array, got {type(delta).__name__}")
+            if len(delta) == 0:
+                raise ValueError("delta must not be empty")
+            if np.any(delta < 0) or np.any(delta > 1):
+                raise ValueError("delta values must be between 0 and 1")
         self.delta = delta
 
         # Learn structure
@@ -106,10 +155,14 @@ class MDM:
         # Set node names in adjacency matrix
         if self.node_names:
             n = len(self.node_names)
-            if self.adj_mat.shape[0] == n:
-                self.adj_mat = pd.DataFrame(
-                    self.adj_mat, index=self.node_names, columns=self.node_names
-                ).values
+            if self.adj_mat.shape[0] != n or self.adj_mat.shape[1] != n:
+                raise ValueError(
+                    f"adjacency matrix shape {self.adj_mat.shape} does not match "
+                    f"number of nodes {n}"
+                )
+            self.adj_mat = pd.DataFrame(
+                self.adj_mat, index=self.node_names, columns=self.node_names
+            ).values
 
         # Select discount factors
         if self.verbose:

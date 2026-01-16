@@ -5,15 +5,12 @@ This module implements discount factor selection and log predictive likelihood
 computation for MDM model scoring.
 """
 
+from typing import Any, Dict, Optional
+
 import numpy as np
-from typing import Optional, Dict, Any
+
 from .dlm import dlm_filter
-from .utils import (
-    build_design_matrix,
-    extract_target_series,
-    get_default_delta,
-    DEFAULT_NBF
-)
+from .utils import DEFAULT_NBF, build_design_matrix, extract_target_series, get_default_delta
 
 
 def select_discount_factors(
@@ -42,6 +39,21 @@ def select_discount_factors(
         Dictionary containing:
         - lpldet : Log predictive likelihoods for each delta and node (nd, N)
         - DF_hat : Selected discount factors for each node (N,)
+    
+    Raises
+    ------
+    ValueError
+        If data and adj_mat dimensions are incompatible.
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from mdmp.scoring import select_discount_factors
+    >>> data = np.random.randn(100, 3)
+    >>> adj_mat = np.zeros((3, 3))
+    >>> adj_mat[0, 1] = 1
+    >>> result = select_discount_factors(data, adj_mat)
+    >>> print(result['DF_hat'])
     """
     if delta is None:
         delta = get_default_delta()
@@ -55,7 +67,7 @@ def select_discount_factors(
         for i in range(Nn):
             Ft, _ = build_design_matrix(data, adj_mat, i)
             Yt = extract_target_series(data, i)
-            
+
             # Run DLM filter
             result = dlm_filter(Yt, Ft.T, delta=delta[k])
             lpldet[k, i] = np.sum(result['lpl'][nbf:])
@@ -134,9 +146,34 @@ def compute_logpl(
     -------
     float
         Negative log predictive likelihood.
+    
+    Raises
+    ------
+    ValueError
+        If node_idx is out of bounds or adj_mat dimensions don't match data.
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from mdmp.scoring import compute_logpl
+    >>> data = np.random.randn(100, 3)
+    >>> adj_mat = np.zeros((3, 3))
+    >>> logpl = compute_logpl(data, adj_mat, delta=0.9, node_idx=0)
+    >>> print(logpl)
     """
     if delta > 1 or delta < 0:
         return np.inf
+
+    # Validate inputs
+    if node_idx < 0 or node_idx >= data.shape[1]:
+        raise ValueError(
+            f"node_idx ({node_idx}) must be between 0 and {data.shape[1] - 1}"
+        )
+
+    if adj_mat.shape[0] != data.shape[1] or adj_mat.shape[1] != data.shape[1]:
+        raise ValueError(
+            f"adj_mat shape {adj_mat.shape} does not match data shape {data.shape}"
+        )
 
     # Build design matrix and extract target series
     Ft, _ = build_design_matrix(data, adj_mat, node_idx)

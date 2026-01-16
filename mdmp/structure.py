@@ -5,10 +5,12 @@ This module implements various structure learning algorithms including
 hill-climbing, tabu search, and other heuristics compatible with MDM scoring.
 """
 
+from typing import Any, Iterable, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict, Any, Tuple, List, Iterable
 from scipy.optimize import minimize_scalar
+
 from .scoring import compute_logpl, select_discount_factors
 from .utils import get_default_delta
 
@@ -48,8 +50,11 @@ class StructureLearner:
         data : np.ndarray
             Time series data (T x N).
         method : str, optional
-            Learning method. Options: "hc", "tabu", "mmhc", "h2pc", "rsmax2", "ipa".
+            Learning method. Options: "hc", "tabu", "ipa".
             Default is "hc".
+            
+            Note: Methods "mmhc", "h2pc", and "rsmax2" are not yet implemented.
+            Use "hc" (hill-climbing) or "tabu" (tabu search) for structure learning.
         nbf : int, optional
             Burn-in time point. Default is 15.
         delta : np.ndarray, optional
@@ -57,7 +62,7 @@ class StructureLearner:
         node_names : list of str, optional
             Node/variable names to use when building labeled data frames.
         **kwargs
-            Additional arguments (e.g., gobnilp_path for IPA method or bnlearn
+            Additional arguments (e.g., gobnilp_path for IPA method or pgmpy
             hill-climbing options when method="hc").
 
         Returns
@@ -68,10 +73,11 @@ class StructureLearner:
         if delta is None:
             delta = get_default_delta()
 
-        if method not in ["hc", "tabu", "mmhc", "h2pc", "rsmax2", "ipa"]:
+        if method not in ["hc", "tabu", "ipa"]:
             raise ValueError(
                 f"Unknown method: {method}. "
-                "Choose from: hc, tabu, mmhc, h2pc, rsmax2, ipa"
+                "Choose from: hc, tabu, ipa. "
+                "Note: Methods mmhc, h2pc, and rsmax2 are not yet implemented."
             )
 
         if method == "ipa":
@@ -125,23 +131,21 @@ class StructureLearner:
 
         # Hill-climbing algorithm
         if method == "hc":
-            adj_mat = self._learn_hc_bnlearn(
+            adj_mat = self._learn_hc_pgmpy(
                 data, nbf=nbf, delta=delta, node_names=node_names, **kwargs
             )
 
         elif method == "tabu":
             adj_mat = self._tabu_search(data, nbf=nbf, delta=delta)
-
         else:
-            # For other methods, use a simplified hill-climbing
-            # (Full implementation would require external libraries like pgmpy)
-            if self.verbose:
-                print(f"Note: {method} not fully implemented, using hill-climbing instead")
-            adj_mat = self._hill_climbing(data, nbf=nbf, delta=delta)
+            raise ValueError(
+                f"Method '{method}' is not supported in _learn_heuristic. "
+                "This should not happen - please report this as a bug."
+            )
 
         return adj_mat
 
-    def _learn_hc_bnlearn(
+    def _learn_hc_pgmpy(
         self,
         data: np.ndarray,
         nbf: int = 15,
@@ -168,7 +172,10 @@ class StructureLearner:
         N = data.shape[1]
         if node_names is not None:
             if len(node_names) != N:
-                raise ValueError("node_names length must match number of columns in data")
+                raise ValueError(
+                    f"node_names length ({len(node_names)}) must match number of columns "
+                    f"in data ({N})"
+                )
             columns = list(node_names)
         else:
             columns = [f"V{i+1}" for i in range(N)]
@@ -216,15 +223,15 @@ class StructureLearner:
         hc = HillClimbSearch(df)
         model = hc.estimate(scoring_method=mdm_score, **hc_kwargs)
 
-        return self._extract_adj_from_bnlearn(model, columns)
+        return self._extract_adj_from_model(model, columns)
 
-    def _extract_adj_from_bnlearn(
+    def _extract_adj_from_model(
         self,
         model: Any,
         columns: List[str]
     ) -> np.ndarray:
         """
-        Extract adjacency matrix from a bnlearn model or dict.
+        Extract adjacency matrix from a pgmpy model or dict.
         """
         if isinstance(model, dict):
             adj = model.get("adjmat")
@@ -297,11 +304,11 @@ class StructureLearner:
 
             # Try all edge operations: add, remove, reverse
             candidates = self._generate_edge_operations(adj_mat, N)
-            
+
             for candidate_adj, needs_cycle_check in candidates:
                 if needs_cycle_check and self._has_cycle(candidate_adj):
                     continue
-                
+
                 score = self._compute_total_score(data, candidate_adj, nbf=nbf, delta=delta)
                 if score > best_score:
                     best_score = score
@@ -386,7 +393,7 @@ class StructureLearner:
             best_idx = np.argmax(neighbor_scores)
             new_adj = neighbors[best_idx]
             current_score = neighbor_scores[best_idx]
-            
+
             # Update tabu list with the move that was made
             # Determine what changed
             diff = new_adj - adj_mat
@@ -395,11 +402,11 @@ class StructureLearner:
                 i_move, j_move = changed[0][0], changed[1][0]
                 move_type = 'add' if new_adj[i_move, j_move] == 1 else 'remove'
                 move_made = (i_move, j_move, move_type)
-                
+
                 if len(tabu_list) >= tabu_size:
                     tabu_list.pop(0)
                 tabu_list.append(move_made)
-            
+
             adj_mat = new_adj
 
             # Update best if improved
@@ -467,7 +474,7 @@ class StructureLearner:
             List of (candidate_adjacency_matrix, needs_cycle_check) tuples.
         """
         candidates = []
-        
+
         # Try adding edges
         for i in range(N):
             for j in range(N):
@@ -475,7 +482,7 @@ class StructureLearner:
                     test_adj = adj_mat.copy()
                     test_adj[i, j] = 1
                     candidates.append((test_adj, True))  # Needs cycle check
-        
+
         # Try removing edges
         for i in range(N):
             for j in range(N):
@@ -483,7 +490,7 @@ class StructureLearner:
                     test_adj = adj_mat.copy()
                     test_adj[i, j] = 0
                     candidates.append((test_adj, False))  # No cycle check needed
-        
+
         # Try reversing edges
         for i in range(N):
             for j in range(N):
@@ -492,7 +499,7 @@ class StructureLearner:
                     test_adj[i, j] = 0
                     test_adj[j, i] = 1
                     candidates.append((test_adj, True))  # Needs cycle check
-        
+
         return candidates
 
     def _has_cycle(self, adj_mat: np.ndarray) -> bool:

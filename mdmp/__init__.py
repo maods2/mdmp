@@ -7,17 +7,11 @@ and estimating time-varying dynamic parameters using Kalman filtering and smooth
 This package is a Python port of the R package 'mdmr'.
 """
 
-from .mdm import MDM
-from .structure import StructureLearner
 from .dlm import dlm_filter, dlm_smooth
-from .scoring import select_discount_factors, compute_logpl
-from .plotting import (
-    plot_dag,
-    plot_arcs,
-    plot_marginal,
-    plot_stream,
-    plot_idag
-)
+from .mdm import MDM
+from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
+from .scoring import compute_logpl, select_discount_factors
+from .structure import StructureLearner
 
 # Optional: GOBNILP interface (requires external binary)
 try:
@@ -42,25 +36,25 @@ __all__ = [
     # Main class
     "MDM",
     "StructureLearner",
-    
+
     # Core DLM functions (R exports)
     "dlm_filter",
     "dlm_smooth",
     "dlm_filt",  # Alias for R compatibility
     "dlm_smoo",  # Alias for R compatibility
-    
+
     # Scoring functions (R exports)
     "select_discount_factors",
     "CDELT",  # Alias for R compatibility
     "compute_logpl",  # Internal but available
-    
+
     # Plotting functions (R exports)
     "plot_dag",
     "plot_arcs",
     "plot_marginal",
     "plot_stream",
     "plot_idag",
-    
+
     # GOBNILP interface (R export, optional)
     "run_gobnilp",
 ]

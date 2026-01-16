@@ -5,17 +5,20 @@ This module provides visualization tools for MDM models including DAG structure,
 dynamic parameters, marginal posteriors, stream plots, and animated heatmaps.
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
+from typing import TYPE_CHECKING, List, Literal, Optional
+
 import matplotlib.animation as animation
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+import matplotlib.pyplot as plt
 import networkx as nx
-from typing import Optional, Union, List, Literal
-from pathlib import Path
+import numpy as np
+from matplotlib.figure import Figure
+
+if TYPE_CHECKING:
+    from .mdm import MDM
 
 
 def plot_dag(
-    mdm_object,
+    mdm_object: "MDM",
     node_labels: Optional[List[str]] = None,
     plot_type: Literal["graph", "heatmap"] = "graph",
     show_legend: bool = False,
@@ -25,7 +28,7 @@ def plot_dag(
     arrow_size: float = 4.0,
     figsize: Optional[tuple] = None,
     layout_seed: Optional[int] = 0
-    ):
+) -> Figure:
     """
     Plot DAG structure as a graph or heatmap.
 
@@ -71,33 +74,33 @@ def plot_dag(
 
     if plot_type == "heatmap":
         fig, ax = plt.subplots(figsize=figsize)
-        
+
         # Create heatmap
         im = ax.imshow(adj_mat, cmap='RdYlBu_r', aspect='auto', vmin=0, vmax=1)
-        
+
         # Set ticks and labels
         ax.set_xticks(range(n))
         ax.set_yticks(range(n))
         ax.set_xticklabels(node_labels, rotation=45, ha='right')
         ax.set_yticklabels(node_labels)
-        
+
         # Add colorbar
         plt.colorbar(im, ax=ax, label='Edge')
-        
+
         ax.set_xlabel('Child', fontsize=12)
         ax.set_ylabel('Parent', fontsize=12)
         ax.set_title('DAG Structure (Adjacency Matrix)', fontsize=14)
-        
+
         plt.tight_layout()
         return fig
 
     else:  # graph
         fig, ax = plt.subplots(figsize=figsize)
-        
+
         # Create directed graph
         G = nx.DiGraph()
         G.add_nodes_from(range(n))
-        
+
         # Add edges
         edges = []
         for i in range(n):
@@ -108,41 +111,41 @@ def plot_dag(
 
         # Layout
         pos = nx.spring_layout(G, k=1.5, iterations=50, seed=layout_seed)
-        
+
         # Draw nodes
         nx.draw_networkx_nodes(
             G, pos, ax=ax, node_color=node_color,
             node_size=2000, alpha=0.9
         )
-        
+
         # Draw edges
         nx.draw_networkx_edges(
             G, pos, ax=ax, edge_color=edge_color,
             arrows=True, arrowsize=arrow_size*10,
             arrowstyle='->', width=2, alpha=0.7
         )
-        
+
         # Draw labels
         labels = {i: node_labels[i] for i in range(n)}
         nx.draw_networkx_labels(
             G, pos, labels, ax=ax,
             font_color=label_color, font_weight='bold', font_size=5
         )
-        
+
         ax.set_title('DAG Structure', fontsize=14)
         ax.axis('off')
-        
+
         plt.tight_layout()
         return fig
 
 
 def plot_arcs(
-    mdm_object,
+    mdm_object: "MDM",
     plot_type: Literal["connections", "intercepts", "all"] = "connections",
     distribution: Literal["filt", "smoo"] = "filt",
     ci_level: float = 0.95,
     figsize: Optional[tuple] = None
-):
+) -> Figure:
     """
     Plot dynamic parameters over time.
 
@@ -263,12 +266,12 @@ def plot_arcs(
 
 
 def plot_marginal(
-    mdm_object,
+    mdm_object: "MDM",
     target_node: int,
     distribution: Literal["filt", "smoo"] = "filt",
     scale_series: bool = False,
     figsize: Optional[tuple] = None
-):
+) -> Figure:
     """
     Plot marginal posterior for a target node.
 
@@ -333,11 +336,11 @@ def plot_marginal(
 
 
 def plot_stream(
-    mdm_object,
+    mdm_object: "MDM",
     child_node: int,
     distribution: Literal["filt", "smoo"] = "filt",
     figsize: Optional[tuple] = None
-):
+) -> Figure:
     """
     Plot stream plot showing parent contributions to a child node.
 
@@ -397,14 +400,14 @@ def plot_stream(
 
 
 def plot_idag(
-    mdm_object,
+    mdm_object: "MDM",
     output_gif: str = "mdm_dynamic.gif",
     fps: int = 10,
     width: int = 6,
     height: int = 6,
     dpi: int = 100,
     distribution: Literal["filt", "smoo"] = "filt"
-):
+) -> animation.FuncAnimation:
     """
     Create animated heatmap of dynamic parameters over time.
 
@@ -453,7 +456,7 @@ def plot_idag(
             mt_node = mt_list[node]
             if mt_node.ndim == 1:
                 mt_node = mt_node.reshape(1, -1)
-            
+
             # Map parameters to adjacency structure
             # (Simplified: just use intercepts and connections)
             for param_idx in range(mt_node.shape[0]):
@@ -473,7 +476,7 @@ def plot_idag(
     vmax = max([np.max(data) for data in frames_data])
 
     im = ax.imshow(frames_data[0], cmap='RdBu_r', aspect='auto', vmin=vmin, vmax=vmax)
-    ax.set_title(f'Time: 0', fontsize=12)
+    ax.set_title('Time: 0', fontsize=12)
     plt.colorbar(im, ax=ax)
 
     def animate(frame):
