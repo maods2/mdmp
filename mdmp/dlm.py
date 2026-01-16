@@ -387,27 +387,104 @@ def _update_filtering_step(
     """
     p = mt.shape[0]
 
-    # Prior at t: (theta_t | y_{t-1}) ~ t_{n_{t-1}}[a_t, R_t]
+    # ========================================================================
+    # STEP 1: PRIOR DISTRIBUTION AT TIME t
+    # ========================================================================
+    # Given observations up to t-1, compute the prior distribution for the
+    # state vector theta_t. The prior follows a Student-t distribution:
+    #   (theta_t | y_{t-1}) ~ t_{n_{t-1}}[a_t, R_t]
+    # where n_{t-1} is the degrees of freedom, a_t is the prior mean, and
+    # R_t is the prior variance-covariance matrix.
+    
+    # Prior mean: a_t = G_t * m_{t-1}
+    # Propagates the posterior mean from t-1 forward through the state equation
     at = G[:, :, i] @ mt[:, i - 1]
+    
+    # Prior variance (scaled form): R*_t = (G_t * C*_{t-1} * G_t^T) / delta
+    # where C*_{t-1} = C_{t-1} * n_{t-1} / d_{t-1} is the unscaled variance.
+    # The discount factor delta controls the evolution variance, with smaller
+    # delta values allowing more rapid changes in the state over time.
     RSt = (G[:, :, i] @ (Ct[:, :, i - 1] * nt[i - 1] / dt[i - 1]) @ G[:, :, i].T) / delta
+    
+    # Prior variance (scaled): R_t = R*_t * d_{t-1} / n_{t-1}
+    # Converts from unscaled to scaled form for the Student-t distribution
     Rt[:, :, i] = RSt * dt[i - 1] / nt[i - 1]
 
-    # One-step forecast: (Y_t | y_{t-1}) ~ t_{n_{t-1}}[f_t, Q_t]
+    # ========================================================================
+    # STEP 2: ONE-STEP FORECAST DISTRIBUTION
+    # ========================================================================
+    # Compute the predictive distribution for the observation Y_t given all
+    # previous observations. This also follows a Student-t distribution:
+    #   (Y_t | y_{t-1}) ~ t_{n_{t-1}}[f_t, Q_t]
+    # where f_t is the forecast mean and Q_t is the forecast variance.
+    
+    # Forecast mean: f_t = F_t^T * a_t
+    # Linear combination of the prior state mean with the design vector
     ft[i] = F[:, i].T @ at
+    
+    # Forecast variance (scaled form): Q*_t = F_t^T * R*_t * F_t + 1
+    # The +1 term accounts for the observational variance (assumed unit variance
+    # in the scaled form). This combines uncertainty from the state evolution
+    # and the observation process.
     QSt = F[:, i].T @ RSt @ F[:, i] + 1
+    
+    # Forecast variance (scaled): Q_t = Q*_t * d_{t-1} / n_{t-1}
     Qt[i] = QSt * dt[i - 1] / nt[i - 1]
+    
+    # Forecast error: e_t = Y_t - f_t
+    # The difference between the observed value and the predicted value
     et = Y[i] - ft[i]
+    
+    # Standardized forecast error: e*_t = e_t / sqrt(Q_t)
+    # Normalized by the forecast standard deviation for diagnostic purposes
     ets[i] = et / np.sqrt(Qt[i])
 
-    # Posterior at t: (theta_t | y_t) ~ t_{n_t}[m_t, C_t]
+    # ========================================================================
+    # STEP 3: POSTERIOR DISTRIBUTION AT TIME t
+    # ========================================================================
+    # Update the state distribution after observing Y_t. The posterior follows:
+    #   (theta_t | y_t) ~ t_{n_t}[m_t, C_t]
+    # where n_t = n_{t-1} + 1 (degrees of freedom increase by 1), m_t is the
+    # posterior mean, and C_t is the posterior variance-covariance matrix.
+    
+    # Kalman gain: A_t = R_t * F_t / Q_t
+    # Determines how much to adjust the prior mean based on the forecast error.
+    # Larger values indicate the observation provides more information about
+    # the state components aligned with F_t.
     At = Rt[:, :, i] @ F[:, i] / Qt[i]
+    
+    # Posterior mean: m_t = a_t + A_t * e_t
+    # Updates the prior mean by adding a weighted forecast error term
     mt[:, i] = at + At * et
+    
+    # Update precision hyperparameters for the unknown variance phi:
+    #   phi ~ Gamma(n_t/2, d_t/2)
+    # The degrees of freedom increase by 1: n_t = n_{t-1} + 1
     nt[i] = nt[i - 1] + 1
+    
+    # The scale parameter accumulates squared forecast errors:
+    #   d_t = d_{t-1} + (e_t^2) / Q*_t
+    # This updates our estimate of the observational precision based on
+    # the magnitude of the forecast error relative to its expected variance.
     dt[i] = dt[i - 1] + (et ** 2) / QSt
+    
+    # Posterior variance (scaled form): C*_t = R*_t - A_t * A_t^T * Q*_t
+    # The posterior variance is reduced from the prior variance by an amount
+    # proportional to the information gained from the observation. This is the
+    # matrix form of the variance update in Kalman filtering.
     CSt = RSt - np.outer(At, At) * QSt
+    
+    # Posterior variance (scaled): C_t = C*_t * d_t / n_t
     Ct[:, :, i] = CSt * dt[i] / nt[i]
 
-    # Log Predictive Likelihood
+    # ========================================================================
+    # STEP 4: LOG PREDICTIVE LIKELIHOOD
+    # ========================================================================
+    # Compute the log predictive likelihood: log p(Y_t | y_{t-1})
+    # This quantifies how well the model predicted the observation Y_t given
+    # all previous data. It is used for model comparison, diagnostics, and
+    # computing overall model fit. The formula is derived from the Student-t
+    # predictive density function.
     lpl[i] = (
         special.gammaln((nt[i - 1] + 1) / 2) -
         special.gammaln(nt[i - 1] / 2) -
