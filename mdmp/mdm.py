@@ -95,7 +95,12 @@ class MDM:
             print(f"Learning structure using method: {method}")
         structure_learner = StructureLearner(verbose=verbose)
         self.adj_mat = structure_learner.learn_structure(
-            data, method=method, nbf=nbf, delta=delta, **kwargs
+            data,
+            method=method,
+            nbf=nbf,
+            delta=delta,
+            node_names=self.node_names,
+            **kwargs
         )
 
         # Set node names in adjacency matrix
