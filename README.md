@@ -11,19 +11,76 @@
 
 ## Installation
 
+### Install from PyPI
+
 ```bash
 pip install mdmp
 ```
 
-Or install from source with uv:
+### Install from GitHub
+
+You can install directly from the GitHub repository:
+
+```bash
+pip install git+https://github.com/arzevedo/mdmp.git
+```
+
+Or install a specific branch or tag:
+
+```bash
+pip install git+https://github.com/arzevedo/mdmp.git@main
+pip install git+https://github.com/arzevedo/mdmp.git@v0.6.2
+```
+
+### Install from Source (Development)
+
+Clone the repository and install in development mode:
+
+```bash
+# Clone the repository
+git clone https://github.com/arzevedo/mdmp.git
+cd mdmp
+
+# Create virtual environment (choose one method)
+# Method 1: Using uv (recommended)
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv sync
+
+# Method 2: Using venv
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -e .
+
+# Method 3: Using existing virtual environment (e.g., .venv-win)
+.venv-win\Scripts\activate  # Windows
+# or
+source .venv/bin/activate   # Linux/Mac
+
+# Install package in editable/development mode
+pip install -e .
+
+# Optional: Install with development dependencies
+pip install -e ".[dev]"
+
+# Optional: Install with hill-climbing support (requires pgmpy)
+pip install -e ".[hc]"
+```
+
+### Install from Source (Production)
+
+For production installation (non-editable):
 
 ```bash
 git clone https://github.com/arzevedo/mdmp.git
 cd mdmp
-uv venv
-uv sync
-source .venv/bin/activate
-python -m pip install -e .
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install in production mode
+pip install .
 ```
 
 ## Requirements
@@ -34,6 +91,100 @@ python -m pip install -e .
 - scipy >= 1.7.0
 - matplotlib >= 3.3.0
 - networkx >= 2.6.0
+
+### Optional Dependencies
+
+- **pgmpy** (>=0.1.25): Required for hill-climbing structure learning method
+- **pytest** (>=7.0.0): For running unit tests
+- **pytest-cov**: For test coverage reports (development only)
+
+## Development Setup
+
+### Prerequisites
+
+- Python 3.8 or higher
+- Git
+- (Optional) `uv` package manager for faster dependency management
+
+### Setup Steps
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/arzevedo/mdmp.git
+   cd mdmp
+   ```
+
+2. **Create and activate a virtual environment:**
+   
+   **Using `uv` (recommended):**
+   ```bash
+   uv venv
+   source .venv/bin/activate  # Linux/Mac
+   # or
+   .venv\Scripts\activate     # Windows
+   uv sync
+   ```
+   
+   **Using `venv`:**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   # or
+   venv\Scripts\activate     # Windows
+   pip install -e ".[dev]"
+   ```
+
+3. **Install the package in development mode:**
+   ```bash
+   pip install -e .
+   ```
+
+   Or with all development dependencies:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+### Running Unit Tests
+
+The package uses `pytest` for testing. To run all tests:
+
+```bash
+# Activate virtual environment first
+source .venv/bin/activate  # Linux/Mac
+# or
+.venv-win\Scripts\activate  # Windows (if using .venv-win)
+
+# Run all tests
+pytest tests/ -v
+
+# Run tests for a specific module
+pytest tests/test_scoring.py -v
+pytest tests/test_structure.py -v
+
+# Run tests with coverage (if pytest-cov is installed)
+pytest tests/ -v --cov=mdmp --cov-report=term-missing
+
+# Run tests without coverage (if pytest-cov is not installed)
+pytest tests/ -v -o addopts=
+```
+
+**Note:** If you encounter errors about coverage options and `pytest-cov` is not installed, use the `-o addopts=` flag to override the configuration, or install pytest-cov:
+
+```bash
+pip install pytest-cov
+```
+
+### Test Structure
+
+The test suite includes:
+- **test_dlm.py**: Tests for DLM filtering and smoothing
+- **test_mdm.py**: Tests for MDM class and main functionality
+- **test_scoring.py**: Tests for scoring functions and discount factor selection
+- **test_structure.py**: Tests for structure learning algorithms
+- **test_utils.py**: Tests for utility functions
+- **test_plotting.py**: Tests for plotting functions
+
+All tests should pass before submitting pull requests.
 
 ## Quick Start
 
