@@ -73,7 +73,7 @@ class MDM:
         verbose : bool, optional
             Whether to print progress messages. Default is True.
         **kwargs
-            Additional arguments passed to StructureLearner (e.g., gobnilp_path for IPA method).
+            Additional arguments passed to StructureLearner.
         
         Raises
         ------

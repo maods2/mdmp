@@ -13,19 +13,6 @@ from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
 from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
 
-# Optional: GOBNILP interface (requires external binary)
-try:
-    from .gobnilp import run_gobnilp
-    _GOBNILP_AVAILABLE = True
-except ImportError:
-    _GOBNILP_AVAILABLE = False
-    # Stub function if gobnilp module fails
-    def run_gobnilp(*args, **kwargs):
-        raise NotImplementedError(
-            "GOBNILP functionality requires external GOBNILP binary. "
-            "See https://bitbucket.org/jamescussens/gobnilp for installation."
-        )
-
 # Aliases to match R package function names
 CDELT = select_discount_factors  # R: CDELT
 dlm_filt = dlm_filter            # R: dlm_filt
@@ -54,8 +41,5 @@ __all__ = [
     "plot_marginal",
     "plot_stream",
     "plot_idag",
-
-    # GOBNILP interface (R export, optional)
-    "run_gobnilp",
 ]
 

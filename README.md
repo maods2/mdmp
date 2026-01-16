@@ -110,10 +110,6 @@ model = MDM(
 Available methods for structure learning:
 - `"hc"`: Hill-climbing (default)
 - `"tabu"`: Tabu search
-- `"mmhc"`: Max-Min Hill Climbing (not fully implemented)
-- `"h2pc"`: H2PC (not fully implemented)
-- `"rsmax2"`: RSMAX2 (not fully implemented)
-- `"ipa"`: Integer Programming Approach via GOBNILP (not yet implemented)
 
 ### Plotting Functions
 
