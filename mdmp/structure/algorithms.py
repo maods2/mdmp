@@ -10,9 +10,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize_scalar
 
-from ..scoring import compute_local_score, compute_structure_score, compute_logpl
+from ..scoring import compute_local_score, compute_structure_score, optimize_local_score
 from ..utils import get_default_delta
 
 
@@ -202,23 +201,13 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm):
                 for parent in parents:
                     adj[self._node_to_idx[parent], node_idx] = 1
 
-                def objective(delta_value: float) -> float:
-                    return compute_logpl(
-                        self._data_np,
-                        adj,
-                        delta_value,
-                        node_idx,
-                        nbf=self._nbf
-                    )
-
-                result = minimize_scalar(
-                    objective,
-                    bounds=(0.0, 1.0),
-                    method="bounded"
+                optimized_score, _ = optimize_local_score(
+                    self._data_np,
+                    adj,
+                    node_idx,
+                    nbf=self._nbf
                 )
-                if not result.success or not np.isfinite(result.fun):
-                    return -np.inf
-                return -result.fun
+                return optimized_score
 
         mdm_score = _MdmStructureScore(df, nbf_value=nbf)
 

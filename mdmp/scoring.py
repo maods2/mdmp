@@ -8,6 +8,7 @@ computation for MDM model scoring.
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
+from scipy.optimize import minimize_scalar
 
 from .dlm import dlm_filter
 from .utils import DEFAULT_NBF, build_design_matrix, extract_target_series, get_default_delta
@@ -244,6 +245,76 @@ def compute_local_score(
     # This is essentially the same as compute_logpl, but with a clearer name
     # for the unified interface
     return compute_logpl(data, adj_mat, delta, node_idx, nbf)
+
+
+def optimize_local_score(
+    data: np.ndarray,
+    adj_mat: np.ndarray,
+    node_idx: int,
+    nbf: int = DEFAULT_NBF,
+    bounds: Tuple[float, float] = (0.0, 1.0),
+    method: str = "bounded"
+) -> Tuple[float, float]:
+    """
+    Optimize the discount factor (delta) to maximize log predictive likelihood for a node.
+
+    This function performs continuous optimization of the discount factor for a single
+    node given its parent structure. It can be used by any structure learning algorithm
+    that needs to find the optimal delta for a node.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Time series data (T x N).
+    adj_mat : np.ndarray
+        Adjacency matrix (N x N).
+    node_idx : int
+        Index of target node.
+    nbf : int, optional
+        Burn-in time point. Default is 15.
+    bounds : tuple of float, optional
+        Bounds for delta optimization. Default is (0.0, 1.0).
+    method : str, optional
+        Optimization method for minimize_scalar. Default is "bounded".
+
+    Returns
+    -------
+    tuple of float
+        Tuple containing (optimized_score, optimal_delta).
+        The optimized_score is the negated log predictive likelihood (to be maximized).
+        If optimization fails, returns (-np.inf, np.nan).
+
+    Raises
+    ------
+    ValueError
+        If node_idx is out of bounds or adj_mat dimensions don't match data.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from mdmp.scoring import optimize_local_score
+    >>> data = np.random.randn(100, 3)
+    >>> adj_mat = np.zeros((3, 3))
+    >>> adj_mat[0, 1] = 1  # Node 0 is parent of node 1
+    >>> score, delta = optimize_local_score(data, adj_mat, node_idx=1)
+    >>> print(f"Optimal score: {score}, Optimal delta: {delta}")
+    """
+    def objective(delta_value: float) -> float:
+        """Objective function for optimization: minimize negative logpl."""
+        return compute_logpl(data, adj_mat, delta_value, node_idx, nbf)
+
+    result = minimize_scalar(
+        objective,
+        bounds=bounds,
+        method=method
+    )
+
+    if not result.success or not np.isfinite(result.fun):
+        return (-np.inf, np.nan)
+
+    # Return negated value (since we're minimizing negative logpl, we want to maximize)
+    # result.fun is the minimum negative logpl, so -result.fun is the maximum logpl
+    return (-result.fun, result.x)
 
 
 def compute_structure_score(
