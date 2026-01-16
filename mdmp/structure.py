@@ -7,8 +7,8 @@ hill-climbing, tabu search, and other heuristics compatible with MDM scoring.
 
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict, Any, Tuple, List
-from scipy.optimize import minimize
+from typing import Optional, Dict, Any, Tuple, List, Iterable
+from scipy.optimize import minimize_scalar
 from .scoring import compute_logpl, select_discount_factors
 from .utils import get_default_delta
 
@@ -37,6 +37,7 @@ class StructureLearner:
         method: str = "hc",
         nbf: int = 15,
         delta: Optional[np.ndarray] = None,
+        node_names: Optional[List[str]] = None,
         **kwargs
     ) -> np.ndarray:
         """
@@ -53,8 +54,11 @@ class StructureLearner:
             Burn-in time point. Default is 15.
         delta : np.ndarray, optional
             Sequence of discount factors. Default is np.arange(0.5, 1.01, 0.01).
+        node_names : list of str, optional
+            Node/variable names to use when building labeled data frames.
         **kwargs
-            Additional arguments (e.g., gobnilp_path for IPA method).
+            Additional arguments (e.g., gobnilp_path for IPA method or bnlearn
+            hill-climbing options when method="hc").
 
         Returns
         -------
@@ -73,14 +77,23 @@ class StructureLearner:
         if method == "ipa":
             return self._learn_ipa(data, nbf=nbf, delta=delta, **kwargs)
         else:
-            return self._learn_heuristic(data, method=method, nbf=nbf, delta=delta)
+            return self._learn_heuristic(
+                data,
+                method=method,
+                nbf=nbf,
+                delta=delta,
+                node_names=node_names,
+                **kwargs
+            )
 
     def _learn_heuristic(
         self,
         data: np.ndarray,
         method: str = "hc",
         nbf: int = 15,
-        delta: Optional[np.ndarray] = None
+        delta: Optional[np.ndarray] = None,
+        node_names: Optional[List[str]] = None,
+        **kwargs
     ) -> np.ndarray:
         """
         Learn structure using heuristic search (hill-climbing or tabu search).
@@ -95,6 +108,9 @@ class StructureLearner:
             Burn-in time point.
         delta : np.ndarray, optional
             Sequence of discount factors.
+        **kwargs
+            Additional arguments passed to the underlying bnlearn call when
+            method="hc".
 
         Returns
         -------
@@ -109,7 +125,9 @@ class StructureLearner:
 
         # Hill-climbing algorithm
         if method == "hc":
-            adj_mat = self._hill_climbing(data, nbf=nbf, delta=delta)
+            adj_mat = self._learn_hc_bnlearn(
+                data, nbf=nbf, delta=delta, node_names=node_names, **kwargs
+            )
 
         elif method == "tabu":
             adj_mat = self._tabu_search(data, nbf=nbf, delta=delta)
@@ -122,6 +140,123 @@ class StructureLearner:
             adj_mat = self._hill_climbing(data, nbf=nbf, delta=delta)
 
         return adj_mat
+
+    def _learn_hc_bnlearn(
+        self,
+        data: np.ndarray,
+        nbf: int = 15,
+        delta: Optional[np.ndarray] = None,
+        node_names: Optional[List[str]] = None,
+        **kwargs
+    ) -> np.ndarray:
+        """
+        Learn structure using pgmpy's hill-climbing with a custom MDM score.
+
+        This mirrors the R implementation using bnlearn::hc with a custom score
+        function by optimizing the MDM log predictive likelihood per node.
+        """
+        try:
+            from pgmpy.estimators import HillClimbSearch, StructureScore
+        except ImportError as exc:
+            raise ImportError(
+                "pgmpy is required for method='hc'. Install with `pip install pgmpy`."
+            ) from exc
+
+        if delta is None:
+            delta = get_default_delta()
+
+        N = data.shape[1]
+        if node_names is not None:
+            if len(node_names) != N:
+                raise ValueError("node_names length must match number of columns in data")
+            columns = list(node_names)
+        else:
+            columns = [f"V{i+1}" for i in range(N)]
+        df = pd.DataFrame(data, columns=columns)
+
+        class _MdmStructureScore(StructureScore):
+            def __init__(self, df_input: pd.DataFrame, nbf_value: int):
+                super().__init__(df_input)
+                self._data_np = df_input.to_numpy()
+                self._nbf = nbf_value
+                self._node_to_idx = {name: idx for idx, name in enumerate(df_input.columns)}
+                self._num_nodes = len(self._node_to_idx)
+
+            def local_score(self, variable, parents):
+                node_idx = self._node_to_idx[variable]
+                adj = np.zeros((self._num_nodes, self._num_nodes), dtype=int)
+                for parent in parents:
+                    adj[self._node_to_idx[parent], node_idx] = 1
+
+                def objective(delta_value: float) -> float:
+                    return compute_logpl(
+                        self._data_np,
+                        adj,
+                        delta_value,
+                        node_idx,
+                        nbf=self._nbf
+                    )
+
+                result = minimize_scalar(
+                    objective,
+                    bounds=(0.0, 1.0),
+                    method="bounded"
+                )
+                if not result.success or not np.isfinite(result.fun):
+                    return -np.inf
+                return -result.fun
+
+        mdm_score = _MdmStructureScore(df, nbf_value=nbf)
+
+        hc_kwargs = dict(kwargs)
+        hc_kwargs.pop("methodtype", None)
+        hc_kwargs.pop("scoretype", None)
+        hc_kwargs.pop("scoring_method", None)
+
+        hc = HillClimbSearch(df)
+        model = hc.estimate(scoring_method=mdm_score, **hc_kwargs)
+
+        return self._extract_adj_from_bnlearn(model, columns)
+
+    def _extract_adj_from_bnlearn(
+        self,
+        model: Any,
+        columns: List[str]
+    ) -> np.ndarray:
+        """
+        Extract adjacency matrix from a bnlearn model or dict.
+        """
+        if isinstance(model, dict):
+            adj = model.get("adjmat")
+            if adj is not None:
+                if isinstance(adj, pd.DataFrame):
+                    return adj.loc[columns, columns].to_numpy(dtype=int)
+                return np.array(adj, dtype=int)
+            if "model_edges" in model and model["model_edges"] is not None:
+                edges = model["model_edges"]
+            elif "edges" in model and model["edges"] is not None:
+                edges = model["edges"]
+            elif "model" in model and model["model"] is not None:
+                edges = list(model["model"].edges())
+            else:
+                edges = []
+        else:
+            edges = list(model.edges())
+
+        return self._edges_to_adjmat(edges, columns)
+
+    def _edges_to_adjmat(
+        self,
+        edges: Iterable[Tuple[str, str]],
+        columns: List[str]
+    ) -> np.ndarray:
+        node_idx = {name: idx for idx, name in enumerate(columns)}
+        N = len(columns)
+        adj = np.zeros((N, N), dtype=int)
+        for parent, child in edges:
+            if parent in node_idx and child in node_idx:
+                adj[node_idx[parent], node_idx[child]] = 1
+        return adj
 
     def _hill_climbing(
         self,

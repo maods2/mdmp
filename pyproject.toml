@@ -14,6 +14,7 @@ dependencies = [
     "scipy>=1.7.0",
     "matplotlib>=3.3.0",
     "networkx>=2.6.0",
+    "bnlearn>=0.12.2",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
