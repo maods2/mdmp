@@ -5,14 +5,12 @@ This module implements the core DLM filtering and smoothing algorithms
 used in the Multiregression Dynamic Model (MDM).
 """
 
+from typing import Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional
 from scipy import special
-from .utils import (
-    DEFAULT_N0,
-    DEFAULT_D0,
-    DEFAULT_CS0_SCALE
-)
+
+from .utils import DEFAULT_CS0_SCALE, DEFAULT_D0, DEFAULT_N0
 
 
 def dlm_filter(
@@ -60,6 +58,21 @@ def dlm_filter(
         - Qt : Forecast variances (T,)
         - ets : Standardized errors (T,)
         - lpl : Log predictive likelihood (T,)
+    
+    Raises
+    ------
+    ValueError
+        If input dimensions are incompatible.
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from mdmp.dlm import dlm_filter
+    >>> Yt = np.random.randn(50)
+    >>> Ft = np.ones((1, 50))  # Intercept only
+    >>> result = dlm_filter(Yt, Ft, delta=0.9)
+    >>> print(result['mt'].shape)
+    (1, 50)
     """
     p = Ft.shape[0]  # Number of parameters
     Nt = len(Yt) + 1  # Sample size + t=0
@@ -76,7 +89,7 @@ def dlm_filter(
     # Initialize prior parameters
     m0_init = m0 if m0 is not None else np.zeros(p)
     CS0_init = CS0 if CS0 is not None else DEFAULT_CS0_SCALE * np.eye(p)
-    
+
     mt, Ct = _initialize_posterior_parameters(m0_init, CS0_init, p, Nt, n0, d0)
 
     # Initialize filtering arrays
@@ -135,6 +148,24 @@ def dlm_smooth(
         Dictionary containing:
         - smt : Smoothed means (p, T)
         - sCt : Smoothed variances (p, p, T)
+    
+    Raises
+    ------
+    ValueError
+        If input dimensions are incompatible.
+    np.linalg.LinAlgError
+        If matrix inversion fails (uses pseudo-inverse as fallback).
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from mdmp.dlm import dlm_filter, dlm_smooth
+    >>> Yt = np.random.randn(50)
+    >>> Ft = np.ones((1, 50))
+    >>> filt = dlm_filter(Yt, Ft, delta=0.9)
+    >>> smooth = dlm_smooth(filt['mt'], filt['Ct'], filt['Rt'], filt['nt'], filt['dt'])
+    >>> print(smooth['smt'].shape)
+    (1, 50)
     """
     # Handle vector case
     if mt.ndim == 1:
@@ -164,14 +195,14 @@ def dlm_smooth(
     for i in range(Nt - 2, -1, -1):
         RSt = Rt[:, :, i + 1] * nt[i] / dt[i]
         CSt = Ct[:, :, i] * nt[i] / dt[i]
-        
+
         # Inverse of RSt
         try:
             inv_sR = np.linalg.inv(RSt)
         except np.linalg.LinAlgError:
             # Use pseudo-inverse if singular
             inv_sR = np.linalg.pinv(RSt)
-        
+
         B = CSt @ Gt[:, :, i + 1].T @ inv_sR
         smt[:, i] = mt[:, i] + B @ (smt[:, i + 1] - Gt[:, :, i + 1] @ mt[:, i])
         sCS = CSt + B @ (sCt[:, :, i + 1] * nt[Nt - 1] / dt[Nt - 1] - RSt) @ B.T
@@ -214,19 +245,19 @@ def _initialize_dlm_arrays(
     # Initialize Y with t=0 padding
     Y = np.zeros(Nt)
     Y[1:] = Yt
-    
+
     # Initialize F with t=0 padding
     F = np.zeros((p, Nt))
     F[:, 1:] = Ft
-    
+
     # Initialize G with identity matrices if not provided
     if Gt is None:
         Gt_list = [np.eye(p) for _ in range(len(Yt))]
         Gt = np.array(Gt_list).transpose(1, 2, 0)
-    
+
     G = np.zeros((p, p, Nt))
     G[:, :, 1:] = Gt
-    
+
     return Y, F, G
 
 
@@ -263,10 +294,10 @@ def _initialize_posterior_parameters(
     """
     mt = np.zeros((p, Nt))
     mt[:, 0] = m0
-    
+
     Ct = np.zeros((p, p, Nt))
     Ct[:, :, 0] = CS0 * d0 / n0
-    
+
     return mt, Ct
 
 
@@ -300,7 +331,7 @@ def _initialize_filtering_arrays(
     Qt = np.zeros(Nt)
     ets = np.zeros(Nt)
     lpl = np.zeros(Nt)
-    
+
     return nt, dt, ft, Qt, ets, lpl
 
 
@@ -354,9 +385,8 @@ def _update_filtering_step(
     delta : float
         Discount factor.
     """
-    from scipy import special
     p = mt.shape[0]
-    
+
     # Prior at t: (theta_t | y_{t-1}) ~ t_{n_{t-1}}[a_t, R_t]
     at = G[:, :, i] @ mt[:, i - 1]
     RSt = (G[:, :, i] @ (Ct[:, :, i - 1] * nt[i - 1] / dt[i - 1]) @ G[:, :, i].T) / delta

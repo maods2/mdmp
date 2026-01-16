@@ -14,7 +14,6 @@ dependencies = [
     "scipy>=1.7.0",
     "matplotlib>=3.3.0",
     "networkx>=2.6.0",
-    "bnlearn>=0.12.2",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -38,9 +37,18 @@ Repository = "https://github.com/maods2/mdmp"
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",
+    "pytest-xdist>=2.0",
+    "pytest-mock>=3.0",
     "black>=21.0",
+    "isort>=5.0",
+    "ruff>=0.1.0",
     "flake8>=3.8",
     "mypy>=0.910",
+    "pre-commit>=2.20.0",
+    "coverage[toml]>=6.0",
+]
+hc = [
+    "pgmpy>=0.1.25",
 ]
 
 [build-system]
@@ -56,4 +64,98 @@ packages = ["mdmp"]
 [dependency-groups]
 dev = [
     "ipykernel",
+    "pytest>=8.3.5",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["mdmp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pgmpy.*",
+    "networkx.*",
+    "matplotlib.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=mdmp --cov-report=term-missing --cov-report=html"
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["mdmp"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
 ]

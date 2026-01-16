@@ -5,12 +5,12 @@ This module provides interfaces to GOBNILP for structure learning.
 Note: These functions require external binaries/tools to be installed.
 """
 
-import numpy as np
+import os
 import subprocess
 import tempfile
-import os
-from pathlib import Path
 from typing import Optional
+
+import numpy as np
 
 
 def run_gobnilp(
@@ -86,7 +86,7 @@ def run_gobnilp(
     try:
         # Run GOBNILP
         cmd = [gobnilp_path, '-f=jkl', '-v=2', f'-g={setfile.name}', scores_path]
-        
+
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -124,7 +124,7 @@ def run_gobnilp(
     except subprocess.TimeoutExpired:
         raise RuntimeError("GOBNILP execution timed out (>1 hour).")
 
-    except Exception as e:
+    except Exception:
         # Clean up on error
         if os.path.exists(setfile.name):
             os.unlink(setfile.name)
@@ -141,11 +141,11 @@ def _find_gobnilp_in_path() -> Optional[str]:
         Path to gobnilp binary if found, None otherwise.
     """
     import shutil
-    
+
     gobnilp_name = 'gobnilp'
     if os.name == 'nt':  # Windows
         gobnilp_name = 'gobnilp.exe'
-    
+
     gobnilp_path = shutil.which(gobnilp_name)
     return gobnilp_path
 
