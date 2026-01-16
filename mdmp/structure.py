@@ -62,8 +62,7 @@ class StructureLearner:
         node_names : list of str, optional
             Node/variable names to use when building labeled data frames.
         **kwargs
-            Additional arguments (e.g., gobnilp_path for IPA method or pgmpy
-            hill-climbing options when method="hc").
+            Additional arguments (e.g., pgmpy hill-climbing options when method="hc").
 
         Returns
         -------

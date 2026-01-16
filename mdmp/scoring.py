@@ -62,11 +62,19 @@ def select_discount_factors(
     Nn = data.shape[1]
     lpldet = np.zeros((nd, Nn))
 
+    # Pre-compute design matrices and target series for each node
+    # (they don't depend on delta, so we can cache them)
+    design_matrices = {}
+    target_series = {}
+    for i in range(Nn):
+        design_matrices[i], _ = build_design_matrix(data, adj_mat, i)
+        target_series[i] = extract_target_series(data, i)
+
     # Evaluate log predictive likelihood for each delta and node
     for k in range(nd):
         for i in range(Nn):
-            Ft, _ = build_design_matrix(data, adj_mat, i)
-            Yt = extract_target_series(data, i)
+            Ft = design_matrices[i]
+            Yt = target_series[i]
 
             # Run DLM filter
             result = dlm_filter(Yt, Ft.T, delta=delta[k])
