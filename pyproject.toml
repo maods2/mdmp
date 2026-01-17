@@ -48,13 +48,8 @@ dev = [
     "mypy>=0.910",
     "pre-commit>=2.20.0",
     "coverage[toml]>=6.0",
-]
-hc = [
     "pgmpy>=0.1.25",
 ]
-# Note: notears is not available on PyPI. Install manually with:
-# pip install git+https://github.com/xunzheng/notears.git
-# or add to requirements manually if needed
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
