@@ -197,10 +197,10 @@ This walkthrough demonstrates how to use `MDMP` to learn a dynamic Bayesian netw
 ```python
 import numpy as np
 import pandas as pd
-from mdmp import MDM, plot_dag, plot_arcs, plot_marginal, plot_stream, plot_idag
+from mdmp import MDM, plot_dag, plot_arcs, plot_marginal, plot_stream, plot_idag, list_datasets, load_dataset
 
 # Load sample data
-data = pd.read_csv("data/mdmr_test_data.csv")
+data = load_dataset("covid_regional_timeseries")
 print(data.head())
 ```
 
@@ -215,7 +215,7 @@ model = MDM(data_input=data, method="hc")
   - The inferred DAG structure (`adj_mat`)
   - Filtering and smoothing estimates (`Filt`, `Smoo`)
   - Local scores and optimization metadata
-  - Available methods: `"hc"` (hill-climbing), `"tabu"` (tabu search)
+  - Available methods: `"hc"` (hill-climbing), `"tabu"` (tabu search), `"mmhc"` (Max-Min Hill-Climbing)
 
 ---
 
@@ -343,7 +343,7 @@ The main `MDM` class coordinates structure learning, discount factor selection, 
 ```python
 model = MDM(
     data,              # Time series data (pd.DataFrame or np.ndarray)
-    method="hc",        # Structure learning method: "hc", "tabu", etc.
+    method="hc",        # Structure learning method: "hc", "tabu", "mmhc", etc.
     nbf=15,            # Burn-in time point
     delta=None,        # Discount factor sequence (auto if None)
     verbose=True       # Print progress
@@ -360,13 +360,25 @@ model = MDM(
 
 ### Structure Learning Methods
 
-By default, the `MDM()` function uses the hill-climbing algorithm to learn the structure of the Bayesian network. Other heuristic methods are also available, like tabu search.
+By default, the `MDM()` function uses the hill-climbing algorithm to learn the structure of the Bayesian network. Other heuristic methods are also available.
 
 Currently available methods:
-- `"hc"`: Hill-climbing (default, fast)
-- `"tabu"`: Tabu search (often finds better structures)
 
-Future implementations may include additional structure learning algorithms.
+- **`"hc"`**: **Hill-climbing** (default, fast) - Uses pgmpy's `HillClimbSearch` with custom MDM scoring function. Optimizes the log predictive likelihood per node. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
+
+- **`"mmhc"`**: **Max-Min Hill-Climbing** - First learns an undirected skeleton via MMPC (Max-Min Parents and Children), then orients edges using hill-climbing with custom MDM score. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
+
+**Experimental/Under development:**
+- **`"tabu"`**: Tabu search - Mentioned in examples but may require additional setup. In the R package, `bnlearn::tabu` provides tabu search functionality. In Python, tabu search can potentially be achieved by passing `tabu_length` parameter to pgmpy's `HillClimbSearch` via `**kwargs` when using `method="hc"`.
+
+**Registered but not yet implemented:**
+- **`"ipa"`**: Integer Programming Approach using GOBNILP - Registered but currently raises `NotImplementedError`. The R package supports this via GOBNILP integration. Future Python implementation would require GOBNILP binary installation.
+
+**Not yet implemented:**
+- **`"h2pc"`**: H2PC algorithm - Available in R package via `bnlearn::h2pc`
+- **`"rsmax2"`**: RSMAX2 algorithm - Available in R package via `bnlearn::rsmax2`
+
+**Note:** These methods correspond to the algorithms available in the original R package `mdmr`, which uses `bnlearn::hc`, `bnlearn::tabu`, `bnlearn::mmhc`, `bnlearn::h2pc`, `bnlearn::rsmax2`, and supports GOBNILP for IPA. The Python implementation uses `pgmpy` as the backend for structure learning algorithms.
 
 ### Plotting Functions
 
@@ -407,7 +419,7 @@ This Python package (`mdmp`) is a port of the R package `mdmr`. The main differe
 1. **Pythonic API**: Uses Python conventions and type hints
 2. **Modular Design**: Code is organized into logical modules
 3. **Modern Dependencies**: Uses NumPy, Pandas, Matplotlib instead of R equivalents
-4. **Structure Learning**: Currently implements hill-climbing and tabu search natively
+4. **Structure Learning**: Implements hill-climbing, tabu search, and Max-Min Hill-Climbing via pgmpy integration
 
 ## Documentation
 
@@ -464,7 +476,7 @@ This package is a Python port of the R package **mdmr**.
 ### 0.6.2 (Initial Release)
 - Ported core functionality from R package mdmr
 - Implemented DLM filtering and smoothing
-- Implemented MDM structure learning (hill-climbing, tabu search)
+- Implemented MDM structure learning (hill-climbing, tabu search, Max-Min Hill-Climbing)
 - Implemented plotting functions
 - Added comprehensive documentation
 
