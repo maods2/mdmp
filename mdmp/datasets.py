@@ -15,9 +15,9 @@ def _get_data_dir() -> Path:
     Get the path to the data directory.
 
     Tries multiple locations:
-    1. Relative to package location (for installed packages)
-    2. Relative to current working directory (for development)
-    3. Relative to the mdmp package directory
+    1. Inside the mdmp package directory (for installed packages)
+    2. Relative to package location (for development at root)
+    3. Relative to current working directory (for development)
 
     Returns
     -------
@@ -29,25 +29,25 @@ def _get_data_dir() -> Path:
     FileNotFoundError
         If the data directory cannot be found.
     """
-    # Try relative to package location
+    # Try inside mdmp package directory (for installed packages)
+    mdmp_data_dir = Path(__file__).parent / "data"
+    if mdmp_data_dir.exists():
+        return mdmp_data_dir
+
+    # Try relative to package location (for development at root)
     package_dir = Path(__file__).parent.parent
     data_dir = package_dir / "data"
     if data_dir.exists():
         return data_dir
 
-    # Try relative to current working directory
+    # Try relative to current working directory (for development)
     cwd_data_dir = Path.cwd() / "data"
     if cwd_data_dir.exists():
         return cwd_data_dir
 
-    # Try relative to mdmp package directory
-    mdmp_data_dir = Path(__file__).parent / "data"
-    if mdmp_data_dir.exists():
-        return mdmp_data_dir
-
     raise FileNotFoundError(
         "Could not find data directory. Please ensure the 'data' folder exists "
-        "either at the package root or in the current working directory."
+        "inside the mdmp package directory, at the package root, or in the current working directory."
     )
 
 

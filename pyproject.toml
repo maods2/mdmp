@@ -65,6 +65,9 @@ packages = ["mdmp", "mdmp.structure"]
 [tool.setuptools.package-dir]
 "" = "."
 
+[tool.setuptools.package-data]
+mdmp = ["data/*.csv"]
+
 [dependency-groups]
 dev = [
     "ipykernel",
