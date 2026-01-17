@@ -11,6 +11,7 @@ import numpy as np
 from scipy.optimize import minimize_scalar
 
 from .dlm import dlm_filter
+from .parallel import _get_n_jobs, _worker_select_delta_node
 from .utils import DEFAULT_NBF, build_design_matrix, extract_target_series, get_default_delta
 
 
@@ -18,7 +19,8 @@ def select_discount_factors(
     data: np.ndarray,
     adj_mat: np.ndarray,
     nbf: int = DEFAULT_NBF,
-    delta: Optional[np.ndarray] = None
+    delta: Optional[np.ndarray] = None,
+    n_jobs: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Select discount factors that maximize log predictive likelihood for each node.
@@ -33,6 +35,10 @@ def select_discount_factors(
         Burn-in time point. Default is 15.
     delta : np.ndarray, optional
         Sequence of discount factors. Default is np.arange(0.5, 1.01, 0.01).
+    n_jobs : int, optional
+        Number of parallel jobs. If None or 1, uses serial processing.
+        If -1, uses all available CPU cores. If > 1, uses that many workers.
+        Default is None (serial processing).
 
     Returns
     -------
@@ -71,15 +77,39 @@ def select_discount_factors(
         design_matrices[i], _ = build_design_matrix(data, adj_mat, i)
         target_series[i] = extract_target_series(data, i)
 
-    # Evaluate log predictive likelihood for each delta and node
-    for k in range(nd):
-        for i in range(Nn):
-            Ft = design_matrices[i]
-            Yt = target_series[i]
+    # Determine number of jobs
+    n_jobs_actual = _get_n_jobs(n_jobs, default=1)
 
-            # Run DLM filter
-            result = dlm_filter(Yt, Ft.T, delta=delta[k])
-            lpldet[k, i] = np.sum(result['lpl'][nbf:])
+    # Evaluate log predictive likelihood for each delta and node
+    if n_jobs_actual == 1:
+        # Serial processing (original code)
+        for k in range(nd):
+            for i in range(Nn):
+                Ft = design_matrices[i]
+                Yt = target_series[i]
+
+                # Run DLM filter
+                result = dlm_filter(Yt, Ft.T, delta=delta[k])
+                lpldet[k, i] = np.sum(result['lpl'][nbf:])
+    else:
+        # Parallel processing
+        from concurrent.futures import ProcessPoolExecutor
+
+        # Prepare arguments for all (delta, node) combinations
+        args_list = []
+        for k in range(nd):
+            for i in range(Nn):
+                args_list.append((
+                    k, i, target_series[i], design_matrices[i], delta[k], nbf
+                ))
+
+        # Process in parallel
+        with ProcessPoolExecutor(max_workers=n_jobs_actual) as executor:
+            results = list(executor.map(_worker_select_delta_node, args_list))
+
+        # Aggregate results
+        for k, i, lpl_sum in results:
+            lpldet[k, i] = lpl_sum
 
     # Select best delta for each node (handling NaN values)
     DF_hat = _select_best_deltas(lpldet, delta, Nn)
@@ -322,7 +352,8 @@ def compute_structure_score(
     adj_mat: np.ndarray,
     nbf: int = DEFAULT_NBF,
     delta: Optional[np.ndarray] = None,
-    cache: Optional[Dict[str, Any]] = None
+    cache: Optional[Dict[str, Any]] = None,
+    n_jobs: Optional[int] = None
 ) -> float:
     """
     Compute total MDM score for a given structure.
@@ -373,7 +404,7 @@ def compute_structure_score(
             return cache[adj_key]
 
     # Compute score using select_discount_factors
-    df_result = select_discount_factors(data, adj_mat, nbf=nbf, delta=delta)
+    df_result = select_discount_factors(data, adj_mat, nbf=nbf, delta=delta, n_jobs=n_jobs)
     total_score = np.sum([np.max(df_result['lpldet'][:, i]) for i in range(data.shape[1])])
 
     # Store in cache if provided

@@ -12,6 +12,7 @@ import pandas as pd
 from scipy import stats
 
 from .dlm import dlm_filter, dlm_smooth
+from .parallel import _get_n_jobs, _worker_filter_node, _worker_smooth_node
 from .scoring import select_discount_factors
 from .structure import StructureLearner
 from .utils import (
@@ -50,6 +51,7 @@ class MDM:
         nbf: int = 15,
         delta: Optional[np.ndarray] = None,
         verbose: bool = True,
+        n_jobs: Optional[int] = None,
         **kwargs
     ):
         """
@@ -72,6 +74,10 @@ class MDM:
             All values must be between 0 and 1.
         verbose : bool, optional
             Whether to print progress messages. Default is True.
+        n_jobs : int, optional
+            Number of parallel jobs for discount factor selection, filtering, and smoothing.
+            If None or 1, uses serial processing. If -1, uses all available CPU cores.
+            If > 1, uses that many parallel workers. Default is None (serial processing).
         **kwargs
             Additional arguments passed to StructureLearner.
         
@@ -94,8 +100,8 @@ class MDM:
         >>> from mdmp import MDM
         >>> # Create sample data
         >>> data = np.random.randn(100, 3)
-        >>> # Fit MDM model
-        >>> model = MDM(data, method="hc", nbf=15, verbose=False)
+        >>> # Fit MDM model with parallel processing
+        >>> model = MDM(data, method="hc", nbf=15, verbose=False, n_jobs=-1)
         >>> # Access results
         >>> print(model.adj_mat.shape)
         (3, 3)
@@ -167,27 +173,28 @@ class MDM:
         # Select discount factors
         if self.verbose:
             print("Selecting discount factors...")
-        df_result = select_discount_factors(self.data, self.adj_mat, nbf=nbf, delta=delta)
+        df_result = select_discount_factors(self.data, self.adj_mat, nbf=nbf, delta=delta, n_jobs=n_jobs)
         self.DF = df_result
 
         # Filter
         if self.verbose:
             print("Computing filtered estimates...")
-        self.Filt = self._mdm_filter(self.data, self.adj_mat, df_result['DF_hat'])
+        self.Filt = self._mdm_filter(self.data, self.adj_mat, df_result['DF_hat'], n_jobs=n_jobs)
 
         # Smooth
         if self.verbose:
             print("Computing smoothed estimates...")
         self.Smoo = self._mdm_smooth(
             self.Filt['mt'], self.Filt['Ct'], self.Filt['Rt'],
-            self.Filt['nt'], self.Filt['dt']
+            self.Filt['nt'], self.Filt['dt'], n_jobs=n_jobs
         )
 
     def _mdm_filter(
         self,
         data: np.ndarray,
         adj_mat: np.ndarray,
-        DF_hat: np.ndarray
+        DF_hat: np.ndarray,
+        n_jobs: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Compute MDM filtering for all nodes.
@@ -200,6 +207,10 @@ class MDM:
             Adjacency matrix (N x N).
         DF_hat : np.ndarray
             Selected discount factors for each node (N,).
+        n_jobs : int, optional
+            Number of parallel jobs. If None or 1, uses serial processing.
+            If -1, uses all available CPU cores. If > 1, uses that many workers.
+            Default is None (serial processing).
 
         Returns
         -------
@@ -209,42 +220,84 @@ class MDM:
         Nn = data.shape[1]  # Number of nodes
         Nt = data.shape[0]  # Number of time points
 
-        mt = {}
-        Ct = {}
-        Rt = {}
-        nt = {}
-        dt = {}
-        ft = {}
-        Qt = {}
-        ets = {}
-        lpl = {}
-        row_names = {}  # Store parameter names for each node
+        # Determine number of jobs
+        n_jobs_actual = _get_n_jobs(n_jobs, default=1)
 
-        # Find connections
-        connections = np.where(adj_mat == 1)
+        if n_jobs_actual == 1:
+            # Serial processing (original code)
+            mt = {}
+            Ct = {}
+            Rt = {}
+            nt = {}
+            dt = {}
+            ft = {}
+            Qt = {}
+            ets = {}
+            lpl = {}
+            row_names = {}  # Store parameter names for each node
 
-        for i in range(Nn):
-            # Build design matrix and extract target series
-            Ft, parent_list = build_design_matrix(data, adj_mat, i)
-            Yt = extract_target_series(data, i)
+            # Find connections
+            connections = np.where(adj_mat == 1)
 
-            # Run DLM filter
-            result = dlm_filter(Yt, Ft.T, delta=DF_hat[i])
+            for i in range(Nn):
+                # Build design matrix and extract target series
+                Ft, parent_list = build_design_matrix(data, adj_mat, i)
+                Yt = extract_target_series(data, i)
 
-            # Store results
-            mt[i] = result['mt']
-            Ct[i] = result['Ct']
-            Rt[i] = result['Rt']
-            nt[i] = result['nt']
-            dt[i] = result['dt']
-            ft[i] = result['ft']
-            Qt[i] = result['Qt']
-            ets[i] = result['ets']
-            lpl[i] = result['lpl']
+                # Run DLM filter
+                result = dlm_filter(Yt, Ft.T, delta=DF_hat[i])
 
-            # Store parameter names for later use (will be used in plotting)
-            param_names = build_parameter_names(i, adj_mat, self.node_names)
-            row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
+                # Store results
+                mt[i] = result['mt']
+                Ct[i] = result['Ct']
+                Rt[i] = result['Rt']
+                nt[i] = result['nt']
+                dt[i] = result['dt']
+                ft[i] = result['ft']
+                Qt[i] = result['Qt']
+                ets[i] = result['ets']
+                lpl[i] = result['lpl']
+
+                # Store parameter names for later use (will be used in plotting)
+                param_names = build_parameter_names(i, adj_mat, self.node_names)
+                row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
+        else:
+            # Parallel processing
+            from concurrent.futures import ProcessPoolExecutor
+
+            # Prepare arguments for all nodes
+            args_list = [
+                (i, data, adj_mat, DF_hat, self.node_names)
+                for i in range(Nn)
+            ]
+
+            # Process in parallel
+            with ProcessPoolExecutor(max_workers=n_jobs_actual) as executor:
+                results = list(executor.map(_worker_filter_node, args_list))
+
+            # Reorganize results into dictionaries
+            mt = {}
+            Ct = {}
+            Rt = {}
+            nt = {}
+            dt = {}
+            ft = {}
+            Qt = {}
+            ets = {}
+            lpl = {}
+            row_names = {}
+
+            for i, result_dict, param_names in results:
+                mt[i] = result_dict['mt']
+                Ct[i] = result_dict['Ct']
+                Rt[i] = result_dict['Rt']
+                nt[i] = result_dict['nt']
+                dt[i] = result_dict['dt']
+                ft[i] = result_dict['ft']
+                Qt[i] = result_dict['Qt']
+                ets[i] = result_dict['ets']
+                lpl[i] = result_dict['lpl']
+                row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
 
         return {
             'mt': mt,
@@ -265,7 +318,8 @@ class MDM:
         Ct: Dict[int, np.ndarray],
         Rt: Dict[int, np.ndarray],
         nt: Dict[int, np.ndarray],
-        dt: Dict[int, np.ndarray]
+        dt: Dict[int, np.ndarray],
+        n_jobs: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Compute MDM smoothing for all nodes.
@@ -282,6 +336,10 @@ class MDM:
             Hyperparameters of precision.
         dt : dict
             Hyperparameters of precision.
+        n_jobs : int, optional
+            Number of parallel jobs. If None or 1, uses serial processing.
+            If -1, uses all available CPU cores. If > 1, uses that many workers.
+            Default is None (serial processing).
 
         Returns
         -------
@@ -289,29 +347,58 @@ class MDM:
             Smoothed estimates for all nodes.
         """
         Nn = len(mt)
-        smt = {}
-        sCt = {}
-        SE = {}
 
-        for i in range(Nn):
-            # Run DLM smooth
-            result = dlm_smooth(mt[i], Ct[i], Rt[i], nt[i], dt[i])
+        # Determine number of jobs
+        n_jobs_actual = _get_n_jobs(n_jobs, default=1)
 
-            smt[i] = result['smt']
-            sCt[i] = result['sCt']
+        if n_jobs_actual == 1:
+            # Serial processing (original code)
+            smt = {}
+            sCt = {}
+            SE = {}
 
-            # Compute standard errors
-            if sCt[i].ndim == 2:  # Single parameter case
-                SE[i] = stats.t.ppf(0.975, nt[i][-1]) * np.sqrt(sCt[i])
-            else:  # Multiple parameters
-                SE_array = np.zeros((sCt[i].shape[2], sCt[i].shape[0]))
-                for j in range(sCt[i].shape[0]):
-                    SE_array[:, j] = (
-                        stats.t.ppf(0.975, nt[i][-1]) *
-                        np.sqrt(sCt[i][j, j, :])
-                    )
-                col_names = [f"SE_{name}" for name in range(sCt[i].shape[0])]
-                SE[i] = pd.DataFrame(SE_array, columns=col_names)
+            for i in range(Nn):
+                # Run DLM smooth
+                result = dlm_smooth(mt[i], Ct[i], Rt[i], nt[i], dt[i])
+
+                smt[i] = result['smt']
+                sCt[i] = result['sCt']
+
+                # Compute standard errors
+                if sCt[i].ndim == 2:  # Single parameter case
+                    SE[i] = stats.t.ppf(0.975, nt[i][-1]) * np.sqrt(sCt[i])
+                else:  # Multiple parameters
+                    SE_array = np.zeros((sCt[i].shape[2], sCt[i].shape[0]))
+                    for j in range(sCt[i].shape[0]):
+                        SE_array[:, j] = (
+                            stats.t.ppf(0.975, nt[i][-1]) *
+                            np.sqrt(sCt[i][j, j, :])
+                        )
+                    col_names = [f"SE_{name}" for name in range(sCt[i].shape[0])]
+                    SE[i] = pd.DataFrame(SE_array, columns=col_names)
+        else:
+            # Parallel processing
+            from concurrent.futures import ProcessPoolExecutor
+
+            # Prepare arguments for all nodes
+            args_list = [
+                (i, mt, Ct, Rt, nt, dt)
+                for i in range(Nn)
+            ]
+
+            # Process in parallel
+            with ProcessPoolExecutor(max_workers=n_jobs_actual) as executor:
+                results = list(executor.map(_worker_smooth_node, args_list))
+
+            # Reorganize results into dictionaries
+            smt = {}
+            sCt = {}
+            SE = {}
+
+            for i, result_dict in results:
+                smt[i] = result_dict['smt']
+                sCt[i] = result_dict['sCt']
+                SE[i] = result_dict['SE']
 
         return {
             'smt': smt,
