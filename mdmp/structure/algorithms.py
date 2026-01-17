@@ -6,7 +6,7 @@ using the Strategy pattern.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -262,12 +262,14 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm):
         return adj
 
 
-class TabuSearchAlgorithm(BaseLearningAlgorithm):
+class MMHCAlgorithm(BaseLearningAlgorithm):
     """
-    Tabu search structure learning algorithm.
+    Max-Min Hill-Climbing (MMHC) structure learning algorithm using pgmpy.
 
-    This algorithm uses tabu search to explore the space of DAG structures,
-    avoiding recently visited solutions to escape local optima.
+    This algorithm uses pgmpy's MmhcEstimator with a custom MDM scoring
+    function. MMHC first learns an undirected skeleton via MMPC (Max-Min
+    Parents and Children), then orients edges using hill-climbing with
+    the custom MDM score.
     """
 
     def learn(
@@ -279,80 +281,108 @@ class TabuSearchAlgorithm(BaseLearningAlgorithm):
         **kwargs
     ) -> np.ndarray:
         """
-        Learn structure using tabu search.
+        Learn structure using pgmpy's MMHC with a custom MDM score.
+
+        MMHC first learns a skeleton via conditional independence tests (MMPC),
+        then orients edges using hill-climbing with the custom MDM scoring
+        function that optimizes the log predictive likelihood per node.
         """
-        max_iter = kwargs.get("max_iter", 100)
-        tabu_size = kwargs.get("tabu_size", 10)
+        try:
+            from pgmpy.estimators import MmhcEstimator, StructureScore
+        except ImportError as exc:
+            raise ImportError(
+                "pgmpy is required for MMHC algorithm. "
+                "Install with `pip install pgmpy`."
+            ) from exc
 
         N = data.shape[1]
-        adj_mat = np.zeros((N, N), dtype=int)
-        current_score = self.compute_score(data, adj_mat, nbf, delta)
-        best_adj = adj_mat.copy()
-        best_score = current_score
+        if node_names is not None:
+            if len(node_names) != N:
+                raise ValueError(
+                    f"node_names length ({len(node_names)}) must match number of columns "
+                    f"in data ({N})"
+                )
+            columns = list(node_names)
+        else:
+            columns = [f"V{i+1}" for i in range(N)]
+        df = pd.DataFrame(data, columns=columns)
 
-        tabu_list = []
-        score_cache = {}  # Cache for score computations
+        class _MdmStructureScore(StructureScore):
+            def __init__(self, df_input: pd.DataFrame, nbf_value: int):
+                super().__init__(df_input)
+                self._data_np = df_input.to_numpy()
+                self._nbf = nbf_value
+                self._node_to_idx = {
+                    name: idx for idx, name in enumerate(df_input.columns)
+                }
+                self._num_nodes = len(self._node_to_idx)
 
-        for iteration in range(max_iter):
-            neighbors = []
-            neighbor_scores = []
+            def local_score(self, variable, parents):
+                node_idx = self._node_to_idx[variable]
+                adj = np.zeros((self._num_nodes, self._num_nodes), dtype=int)
+                for parent in parents:
+                    adj[self._node_to_idx[parent], node_idx] = 1
 
-            # Generate neighbors
-            for i in range(N):
-                for j in range(N):
-                    if i != j:
-                        test_adj = adj_mat.copy()
-                        if adj_mat[i, j] == 0:
-                            test_adj[i, j] = 1
-                            if not self._has_cycle(test_adj):
-                                neighbor_key = (i, j, 'add')
-                                if neighbor_key not in tabu_list:
-                                    score = self.compute_score(
-                                        data, test_adj, nbf, delta, cache=score_cache
-                                    )
-                                    neighbors.append(test_adj)
-                                    neighbor_scores.append(score)
-                        else:
-                            test_adj[i, j] = 0
-                            neighbor_key = (i, j, 'remove')
-                            if neighbor_key not in tabu_list:
-                                score = self.compute_score(
-                                    data, test_adj, nbf, delta, cache=score_cache
-                                )
-                                neighbors.append(test_adj)
-                                neighbor_scores.append(score)
+                optimized_score, _ = optimize_local_score(
+                    self._data_np,
+                    adj,
+                    node_idx,
+                    nbf=self._nbf
+                )
+                return optimized_score
 
-            if not neighbors:
-                break
+        mdm_score = _MdmStructureScore(df, nbf_value=nbf)
 
-            # Select best neighbor (even if worse than current)
-            best_idx = np.argmax(neighbor_scores)
-            new_adj = neighbors[best_idx]
-            current_score = neighbor_scores[best_idx]
+        # Extract MMHC-specific kwargs
+        mmhc_kwargs = dict(kwargs)
+        mmhc_kwargs.pop("methodtype", None)
+        mmhc_kwargs.pop("scoretype", None)
+        mmhc_kwargs.pop("scoring_method", None)
 
-            # Update tabu list with the move that was made
-            diff = new_adj - adj_mat
-            changed = np.where(diff != 0)
-            if len(changed[0]) > 0:
-                i_move, j_move = changed[0][0], changed[1][0]
-                move_type = 'add' if new_adj[i_move, j_move] == 1 else 'remove'
-                move_made = (i_move, j_move, move_type)
+        mmhc = MmhcEstimator(df)
+        model = mmhc.estimate(scoring_method=mdm_score, **mmhc_kwargs)
 
-                if len(tabu_list) >= tabu_size:
-                    tabu_list.pop(0)
-                tabu_list.append(move_made)
+        return self._extract_adj_from_model(model, columns)
 
-            adj_mat = new_adj
+    def _extract_adj_from_model(
+        self,
+        model: Any,
+        columns: List[str]
+    ) -> np.ndarray:
+        """
+        Extract adjacency matrix from a pgmpy model or dict.
+        """
+        if isinstance(model, dict):
+            adj = model.get("adjmat")
+            if adj is not None:
+                if isinstance(adj, pd.DataFrame):
+                    return adj.loc[columns, columns].to_numpy(dtype=int)
+                return np.array(adj, dtype=int)
+            if "model_edges" in model and model["model_edges"] is not None:
+                edges = model["model_edges"]
+            elif "edges" in model and model["edges"] is not None:
+                edges = model["edges"]
+            elif "model" in model and model["model"] is not None:
+                edges = list(model["model"].edges())
+            else:
+                edges = []
+        else:
+            edges = list(model.edges())
 
-            # Update best if improved
-            if current_score > best_score:
-                best_score = current_score
-                best_adj = adj_mat.copy()
+        return self._edges_to_adjmat(edges, columns)
 
-            if self.verbose and iteration % 10 == 0:
-                print(f"Iteration {iteration}: Score = {current_score:.2f}")
-
-        return best_adj
+    def _edges_to_adjmat(
+        self,
+        edges: Iterable[Tuple[str, str]],
+        columns: List[str]
+    ) -> np.ndarray:
+        node_idx = {name: idx for idx, name in enumerate(columns)}
+        N = len(columns)
+        adj = np.zeros((N, N), dtype=int)
+        for parent, child in edges:
+            if parent in node_idx and child in node_idx:
+                adj[node_idx[parent], node_idx[child]] = 1
+        return adj
 
 
 class IpaAlgorithm(BaseLearningAlgorithm):
