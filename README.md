@@ -24,14 +24,14 @@ pip install mdmp
 You can install directly from the GitHub repository:
 
 ```bash
-pip install git+https://github.com/arzevedo/mdmp.git
+pip install git+https://github.com/maods2/mdmp.git
 ```
 
 Or install a specific branch or tag:
 
 ```bash
-pip install git+https://github.com/arzevedo/mdmp.git@main
-pip install git+https://github.com/arzevedo/mdmp.git@v0.6.2
+pip install git+https://github.com/maods2/mdmp.git@main
+pip install git+https://github.com/maods2/mdmp.git@v0.6.2
 ```
 
 ### Install from Source (Development)
@@ -40,7 +40,7 @@ Clone the repository and install in development mode:
 
 ```bash
 # Clone the repository
-git clone https://github.com/arzevedo/mdmp.git
+git clone https://github.com/maods2/mdmp.git
 cd mdmp
 
 # Create virtual environment (choose one method)
@@ -74,7 +74,7 @@ pip install -e ".[hc]"
 For production installation (non-editable):
 
 ```bash
-git clone https://github.com/arzevedo/mdmp.git
+git clone https://github.com/maods2/mdmp.git
 cd mdmp
 
 # Create and activate virtual environment
@@ -112,7 +112,7 @@ pip install .
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/arzevedo/mdmp.git
+   git clone https://github.com/maods2/mdmp.git
    cd mdmp
    ```
 
@@ -429,9 +429,9 @@ If you use this package in your research, please cite:
 ```
 @software{mdmp,
   title = {MDMP: Bayesian Dynamic Regression Model for Python},
-  author = {Santos, Matheus Augusto Oliveira dos and Costa, Lilia and Azevedo, Arthur R.},
+  author = {},
   version = {0.6.2},
-  url = {https://github.com/arzevedo/mdmp},
+  url = {https://github.com/maods2/mdmp},
   note = {Python port of the mdmr R package}
 }
 ```
