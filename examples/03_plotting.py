@@ -42,7 +42,7 @@ print(f"\nSaving plots to '{output_dir}/' directory...")
 
 # 1. Plot DAG - Graph view
 print("\n1. Plotting DAG (graph view)...")
-fig1 = plot_dag(model, plot_type="graph", figsize=(10, 8))
+fig1 = plot_dag(model, plot_type="graph", figsize=(10, 8), layout_seed=5)
 fig1.savefig(f"{output_dir}/dag_graph.png", dpi=150, bbox_inches='tight')
 plt.close(fig1)
 print(f"   Saved: {output_dir}/dag_graph.png")
