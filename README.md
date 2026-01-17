@@ -11,6 +11,64 @@ This package is a Python port of the R package **mdmr** developed by [Lilia Cost
 - **Discount Factor Selection**: Automatically select optimal discount factors for each node
 - **Visualization**: Comprehensive plotting tools for DAG structures, dynamic parameters, marginal posteriors, and animated heatmaps
 
+## MDM Algorithm Flow
+
+The MDM algorithm follows this general workflow:
+
+```mermaid
+flowchart TD
+    A[Multivariate Time Series Data] --> B[Structure Learning]
+    B --> C{Select Method}
+    C -->|hc| D[Hill-Climbing]
+    C -->|tabu| E[Tabu Search]
+    C -->|mmhc| F[Max-Min Hill-Climbing]
+    
+    D --> G[Initialize Structure]
+    E --> G
+    F --> G
+    
+    G --> H[Loop: Evaluate Candidate Structures]
+    H --> I[For Each Node:<br/>Maximize LPL]
+    I --> J[Optimize Discount Factor δ]
+    J --> K[Compute Local Score<br/>Build Design Matrix<br/>Run DLM Filter<br/>Sum Log Predictive Likelihood]
+    K --> L{Score Improved?}
+    L -->|Yes| M[Update Structure<br/>Add/Remove/Reverse Edges]
+    L -->|No| N{More Candidates?}
+    M --> N
+    N -->|Yes| H
+    N -->|No| O[DAG Adjacency Matrix]
+    
+    O --> P[Select Discount Factors]
+    P --> Q[For Each Node:<br/>Evaluate δ Values]
+    Q --> R[Select δ that<br/>Maximizes LPL]
+    R --> S[Discount Factors DF_hat]
+    
+    S --> T[Filter]
+    T --> U[For Each Node:<br/>Run DLM Filter]
+    U --> V[Build Design Matrix<br/>Extract Target Series<br/>Filter with DF_hat]
+    V --> W[Filtered Parameters<br/>mt, Ct, Rt, nt, dt]
+    
+    W --> X[Smooth]
+    X --> Y[For Each Node:<br/>Run DLM Smooth]
+    Y --> Z[Smoothed Parameters<br/>smt, sCt, SE]
+    
+    style A fill:#e1f5ff
+    style O fill:#fff4e1
+    style S fill:#fff4e1
+    style W fill:#e8f5e9
+    style Z fill:#e8f5e9
+```
+
+**Key Steps:**
+
+1. **Structure Learning**: Learn the DAG structure using a selected method (e.g., hill-climbing). The algorithm iteratively evaluates candidate structures by maximizing the log predictive likelihood (LPL) for each node.
+
+2. **Discount Factor Selection**: For each node, evaluate different discount factors (δ) and select the one that maximizes the LPL.
+
+3. **Filtering**: Run DLM filtering for each node using the learned structure and selected discount factors to obtain filtered dynamic parameters.
+
+4. **Smoothing**: Run DLM smoothing on the filtered parameters to obtain smoothed estimates with reduced variance.
+
 ## Installation
 
 ### Install from PyPI
