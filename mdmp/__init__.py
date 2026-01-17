@@ -12,6 +12,10 @@ from .mdm import MDM
 from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
 from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
+from .datasets import (
+    load_dataset,
+    list_datasets,
+)
 
 # Aliases to match R package function names
 CDELT = select_discount_factors  # R: CDELT
@@ -41,5 +45,9 @@ __all__ = [
     "plot_marginal",
     "plot_stream",
     "plot_idag",
+
+    # Dataset loading functions
+    "load_dataset",
+    "list_datasets",
 ]
 

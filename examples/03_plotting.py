@@ -22,7 +22,7 @@ from mdmp import MDM, plot_dag, plot_arcs, plot_marginal, plot_stream
 np.random.seed(42)
 
 # Generate synthetic time series data
-data_df = pd.read_csv("./data/example_dag.csv")
+data_df = pd.read_csv("./data/mdmr_test_data.csv")
 _, N = data_df.shape
 
 print("=" * 60)
