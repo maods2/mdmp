@@ -13,6 +13,7 @@ from scipy import stats
 
 from .dlm import dlm_filter, dlm_smooth
 from .parallel import _get_n_jobs, _worker_filter_node, _worker_smooth_node
+from .progress import get_progress_bar, process_map_with_progress
 from .scoring import select_discount_factors
 from .structure import StructureLearner
 from .utils import (
@@ -73,7 +74,9 @@ class MDM:
             Sequence of discount factors for optimization. Default is np.arange(0.5, 1.01, 0.01).
             All values must be between 0 and 1.
         verbose : bool, optional
-            Whether to print progress messages. Default is True.
+            Whether to print progress messages and show progress bars.
+            When True, displays progress bars for discount factor selection,
+            filtering, and smoothing operations. Default is True.
         n_jobs : int, optional
             Number of parallel jobs for discount factor selection, filtering, and smoothing.
             If None or 1, uses serial processing. If -1, uses all available CPU cores.
@@ -173,20 +176,24 @@ class MDM:
         # Select discount factors
         if self.verbose:
             print("Selecting discount factors...")
-        df_result = select_discount_factors(self.data, self.adj_mat, nbf=nbf, delta=delta, n_jobs=n_jobs)
+        df_result = select_discount_factors(
+            self.data, self.adj_mat, nbf=nbf, delta=delta, n_jobs=n_jobs, verbose=self.verbose
+        )
         self.DF = df_result
 
         # Filter
         if self.verbose:
             print("Computing filtered estimates...")
-        self.Filt = self._mdm_filter(self.data, self.adj_mat, df_result['DF_hat'], n_jobs=n_jobs)
+        self.Filt = self._mdm_filter(
+            self.data, self.adj_mat, df_result['DF_hat'], n_jobs=n_jobs, verbose=self.verbose
+        )
 
         # Smooth
         if self.verbose:
             print("Computing smoothed estimates...")
         self.Smoo = self._mdm_smooth(
             self.Filt['mt'], self.Filt['Ct'], self.Filt['Rt'],
-            self.Filt['nt'], self.Filt['dt'], n_jobs=n_jobs
+            self.Filt['nt'], self.Filt['dt'], n_jobs=n_jobs, verbose=self.verbose
         )
 
     def _mdm_filter(
@@ -194,7 +201,8 @@ class MDM:
         data: np.ndarray,
         adj_mat: np.ndarray,
         DF_hat: np.ndarray,
-        n_jobs: Optional[int] = None
+        n_jobs: Optional[int] = None,
+        verbose: bool = False
     ) -> Dict[str, Any]:
         """
         Compute MDM filtering for all nodes.
@@ -211,6 +219,8 @@ class MDM:
             Number of parallel jobs. If None or 1, uses serial processing.
             If -1, uses all available CPU cores. If > 1, uses that many workers.
             Default is None (serial processing).
+        verbose : bool, optional
+            Whether to show progress bars. Default is False.
 
         Returns
         -------
@@ -224,7 +234,7 @@ class MDM:
         n_jobs_actual = _get_n_jobs(n_jobs, default=1)
 
         if n_jobs_actual == 1:
-            # Serial processing (original code)
+            # Serial processing with progress bar
             mt = {}
             Ct = {}
             Rt = {}
@@ -238,6 +248,14 @@ class MDM:
 
             # Find connections
             connections = np.where(adj_mat == 1)
+
+            # Create progress bar
+            pbar = get_progress_bar(
+                total=Nn,
+                desc="Filtering nodes",
+                disable=not verbose,
+                unit="nodes"
+            )
 
             for i in range(Nn):
                 # Build design matrix and extract target series
@@ -261,19 +279,29 @@ class MDM:
                 # Store parameter names for later use (will be used in plotting)
                 param_names = build_parameter_names(i, adj_mat, self.node_names)
                 row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
+                
+                if hasattr(pbar, 'update'):
+                    pbar.update(1)
+            
+            if hasattr(pbar, 'close'):
+                pbar.close()
         else:
-            # Parallel processing
-            from concurrent.futures import ProcessPoolExecutor
-
+            # Parallel processing with progress bar
             # Prepare arguments for all nodes
             args_list = [
                 (i, data, adj_mat, DF_hat, self.node_names)
                 for i in range(Nn)
             ]
 
-            # Process in parallel
-            with ProcessPoolExecutor(max_workers=n_jobs_actual) as executor:
-                results = list(executor.map(_worker_filter_node, args_list))
+            # Process in parallel with progress tracking
+            results = process_map_with_progress(
+                _worker_filter_node,
+                args_list,
+                max_workers=n_jobs_actual,
+                desc="Filtering nodes (parallel)",
+                disable=not verbose,
+                unit="nodes"
+            )
 
             # Reorganize results into dictionaries
             mt = {}
@@ -319,7 +347,8 @@ class MDM:
         Rt: Dict[int, np.ndarray],
         nt: Dict[int, np.ndarray],
         dt: Dict[int, np.ndarray],
-        n_jobs: Optional[int] = None
+        n_jobs: Optional[int] = None,
+        verbose: bool = False
     ) -> Dict[str, Any]:
         """
         Compute MDM smoothing for all nodes.
@@ -340,6 +369,8 @@ class MDM:
             Number of parallel jobs. If None or 1, uses serial processing.
             If -1, uses all available CPU cores. If > 1, uses that many workers.
             Default is None (serial processing).
+        verbose : bool, optional
+            Whether to show progress bars. Default is False.
 
         Returns
         -------
@@ -352,10 +383,18 @@ class MDM:
         n_jobs_actual = _get_n_jobs(n_jobs, default=1)
 
         if n_jobs_actual == 1:
-            # Serial processing (original code)
+            # Serial processing with progress bar
             smt = {}
             sCt = {}
             SE = {}
+
+            # Create progress bar
+            pbar = get_progress_bar(
+                total=Nn,
+                desc="Smoothing nodes",
+                disable=not verbose,
+                unit="nodes"
+            )
 
             for i in range(Nn):
                 # Run DLM smooth
@@ -376,19 +415,29 @@ class MDM:
                         )
                     col_names = [f"SE_{name}" for name in range(sCt[i].shape[0])]
                     SE[i] = pd.DataFrame(SE_array, columns=col_names)
+                
+                if hasattr(pbar, 'update'):
+                    pbar.update(1)
+            
+            if hasattr(pbar, 'close'):
+                pbar.close()
         else:
-            # Parallel processing
-            from concurrent.futures import ProcessPoolExecutor
-
+            # Parallel processing with progress bar
             # Prepare arguments for all nodes
             args_list = [
                 (i, mt, Ct, Rt, nt, dt)
                 for i in range(Nn)
             ]
 
-            # Process in parallel
-            with ProcessPoolExecutor(max_workers=n_jobs_actual) as executor:
-                results = list(executor.map(_worker_smooth_node, args_list))
+            # Process in parallel with progress tracking
+            results = process_map_with_progress(
+                _worker_smooth_node,
+                args_list,
+                max_workers=n_jobs_actual,
+                desc="Smoothing nodes (parallel)",
+                disable=not verbose,
+                unit="nodes"
+            )
 
             # Reorganize results into dictionaries
             smt = {}

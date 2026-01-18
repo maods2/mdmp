@@ -242,6 +242,119 @@ The test suite includes:
 - **test_scoring.py**: Tests for scoring functions and discount factor selection
 - **test_structure.py**: Tests for structure learning algorithms
 - **test_utils.py**: Tests for utility functions
+- **test_parallel.py**: Tests for parallel processing functionality
+- **test_progress.py**: Tests for progress bar functionality
+- **test_plotting.py**: Tests for plotting functions
+
+### Code Quality and Linting
+
+The project uses **Ruff** for fast Python linting and code quality checks. Ruff is configured in `pyproject.toml` and checks for:
+
+- **E, W**: pycodestyle errors and warnings
+- **F**: Pyflakes (unused imports, undefined names, etc.)
+- **I**: Import sorting (isort)
+- **B**: flake8-bugbear (common bugs and design problems)
+- **C4**: flake8-comprehensions (better list/dict comprehensions)
+- **UP**: pyupgrade (modernize Python syntax)
+
+#### Basic Ruff Commands
+
+```bash
+# Activate virtual environment first
+source .venv/bin/activate  # Linux/Mac
+# or
+.venv-win\Scripts\activate  # Windows
+
+# Check for linting issues (read-only)
+ruff check .
+
+# Check and automatically fix issues
+ruff check --fix .
+
+# Check specific directories
+ruff check mdmp/
+ruff check tests/
+
+# Check only import-related issues
+ruff check . --select I
+
+# Check only style issues
+ruff check . --select E,W
+
+# Show statistics
+ruff check . --statistics
+```
+
+#### Ruff Configuration
+
+The Ruff configuration is in `pyproject.toml`:
+
+```toml
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501", "B008"]
+```
+
+**Key settings:**
+- `line-length = 100`: Matches Black formatter line length
+- `target-version = "py38"`: Ensures Python 3.8+ compatibility
+- `E501` is ignored: Line length is handled by Black
+- `B008` is ignored: Function calls in argument defaults are sometimes necessary
+
+#### Formatting
+
+The project uses **Black** for code formatting. Ruff can also format code, but Black is the primary formatter:
+
+```bash
+# Format code with Black
+black mdmp/ tests/
+
+# Check formatting without changing files
+black --check mdmp/ tests/
+```
+
+#### Pre-commit Hooks (Optional)
+
+If you have pre-commit configured, Ruff can run automatically:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run manually
+pre-commit run --all-files
+```
+
+#### Common Ruff Workflow
+
+1. **Before committing:**
+   ```bash
+   # Check for issues
+   ruff check .
+   
+   # Auto-fix what can be fixed
+   ruff check --fix .
+   
+   # Format code
+   black mdmp/ tests/
+   ```
+
+2. **For specific issues:**
+   ```bash
+   # Fix only import sorting
+   ruff check --fix . --select I
+   
+   # Check specific file
+   ruff check mdmp/mdm.py
+   ```
+
+3. **In CI/CD:**
+   ```bash
+   # Fail if there are issues
+   ruff check . --output-format=github
+   ```
 - **test_plotting.py**: Tests for plotting functions
 
 All tests should pass before submitting pull requests.
@@ -404,7 +517,8 @@ model = MDM(
     method="hc",        # Structure learning method: "hc", "tabu", "mmhc", etc.
     nbf=15,            # Burn-in time point
     delta=None,        # Discount factor sequence (auto if None)
-    verbose=True       # Print progress
+    verbose=True,       # Print progress
+    n_jobs=-1
 )
 ```
 

@@ -16,6 +16,7 @@ dependencies = [
     "networkx>=2.6.0",
     "pgmpy>=0.1.25",
     "seaborn>=0.13.2",
+    "tqdm>=4.60.0",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

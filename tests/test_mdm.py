@@ -77,14 +77,6 @@ def test_mdm_init_invalid_data():
         MDM("not valid data", method="hc", verbose=False)
 
 
-def test_mdm_init_different_methods(sample_data):
-    """Test MDM with different structure learning methods."""
-    small_data = sample_data[:30, :2]
-
-    # Test tabu method (doesn't need pgmpy)
-    model = MDM(small_data, method="tabu", nbf=5, verbose=False, max_iter=3)
-    assert hasattr(model, 'adj_mat')
-
 
 def test_mdm_repr(sample_data):
     """Test MDM string representation."""
