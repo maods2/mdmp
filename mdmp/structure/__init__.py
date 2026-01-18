@@ -9,20 +9,23 @@ from .algorithms import (
     HillClimbingAlgorithm,
     IpaAlgorithm,
     MMHCAlgorithm,
+    TabuAlgorithm,
 )
 from .learner import StructureLearner
 from .registry import get_algorithm, list_algorithms, register_algorithm
 
 # Register default algorithms
 register_algorithm("hc", HillClimbingAlgorithm)
-register_algorithm("ipa", IpaAlgorithm)
+register_algorithm("tabu", TabuAlgorithm)
+# register_algorithm("ipa", IpaAlgorithm)
 register_algorithm("mmhc", MMHCAlgorithm)
 
 __all__ = [
     "StructureLearner",
     "BaseLearningAlgorithm",
     "HillClimbingAlgorithm",
-    "IpaAlgorithm",
+    "TabuAlgorithm",
+    # "IpaAlgorithm",
     "MMHCAlgorithm",
     "register_algorithm",
     "get_algorithm",

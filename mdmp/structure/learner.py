@@ -48,13 +48,14 @@ class StructureLearner:
         data : np.ndarray
             Time series data (T x N).
         method : str, optional
-            Learning method. Options: "hc", "tabu", "ipa", "mmhc".
+            Learning method. Options: "hc", "tabu", "mmhc".
             Default is "hc".
             
             - "hc": Hill-climbing using pgmpy (requires pgmpy)
-            - "tabu": Tabu search
-            - "ipa": Integer Programming Approach (not yet implemented)
+            - "tabu": Tabu search using pgmpy (requires pgmpy)
             - "mmhc": Max-Min Hill-Climbing using pgmpy (requires pgmpy)
+            
+            Note: Methods "ipa", "h2pc", and "rsmax2" are not yet implemented.
         nbf : int, optional
             Burn-in time point. Default is 15.
         delta : np.ndarray, optional
@@ -81,7 +82,7 @@ class StructureLearner:
             raise ValueError(
                 f"Unknown method: {method}. "
                 f"Available methods: {', '.join(available) if available else 'none'}. "
-                "Note: Methods mmhc, h2pc, and rsmax2 are not yet implemented."
+                "Note: Methods h2pc and rsmax2 are not yet implemented."
             ) from e
 
         # Create algorithm instance and learn structure

@@ -6,9 +6,12 @@ This package is a Python port of the R package **mdmr** developed by [Lilia Cost
 
 ## Features
 
-- **Structure Learning**: Learn Bayesian network structures from multivariate time series using various algorithms (hill-climbing, tabu search, etc.)
+- **Structure Learning**: Learn Bayesian network structures from multivariate time series using various algorithms (hill-climbing, tabu search, Max-Min Hill-Climbing)
 - **Dynamic Parameter Estimation**: Estimate time-varying parameters using Kalman filtering and smoothing
 - **Discount Factor Selection**: Automatically select optimal discount factors for each node
+- **Parallel Processing**: Support for multiprocessing to speed up computation on multi-core systems
+- **Progress Tracking**: Visual progress bars for long-running operations (when `verbose=True`)
+- **Performance Logging**: Automatic timing and logging of total processing time
 - **Visualization**: Comprehensive plotting tools for DAG structures, dynamic parameters, marginal posteriors, and animated heatmaps
 
 ## MDM Algorithm Flow
@@ -378,8 +381,13 @@ print(data.head())
 ### 2. Fit the MDM model
 
 ```python
-model = MDM(data_input=data, method="hc")
-# Running hill-climbing with custom MDM score...
+model = MDM(data, method="hc", verbose=True, n_jobs=-1)
+# Learning structure using method: hc
+# Selecting discount factors...
+# Computing filtered estimates...
+# Computing smoothed estimates...
+# 
+# MDM processing completed in 6.47 seconds
 ```
 
 - `model` is an object of class `MDM` containing:
@@ -514,21 +522,31 @@ The main `MDM` class coordinates structure learning, discount factor selection, 
 ```python
 model = MDM(
     data,              # Time series data (pd.DataFrame or np.ndarray)
-    method="hc",        # Structure learning method: "hc", "tabu", "mmhc", etc.
+    method="hc",       # Structure learning method: "hc", "tabu", "mmhc"
     nbf=15,            # Burn-in time point
     delta=None,        # Discount factor sequence (auto if None)
-    verbose=True,       # Print progress
-    n_jobs=-1
+    verbose=True,      # Print progress and show progress bars
+    n_jobs=-1          # Number of parallel jobs (-1 = all cores, 1 = serial, None = serial)
 )
 ```
+
+**Key Parameters:**
+- `method`: Structure learning algorithm (`"hc"`, `"tabu"`, or `"mmhc"`)
+- `verbose`: If `True`, shows progress messages, progress bars, and total processing time
+- `n_jobs`: Parallel processing control:
+  - `None` or `1`: Serial processing (default)
+  - `-1`: Use all available CPU cores
+  - `> 1`: Use that many parallel workers
 
 **Attributes:**
 - `adj_mat`: Adjacency matrix of learned DAG structure
 - `data`: Original input data
-- `DF`: Discount factor estimation results
-- `Filt`: Filtered dynamic parameters
-- `Smoo`: Smoothed dynamic parameters
+- `DF`: Discount factor estimation results (contains `DF_hat` and `lpldet`)
+- `Filt`: Filtered dynamic parameters (contains `mt`, `Ct`, `Rt`, `nt`, `dt`, `ft`, `Qt`, `ets`, `lpl`, `row_names`)
+- `Smoo`: Smoothed dynamic parameters (contains `smt`, `sCt`, `SE`)
 - `node_names`: Names of variables/nodes
+- `verbose`: Whether verbose output is enabled
+- `nbf`: Burn-in time point used
 
 ### Structure Learning Methods
 
@@ -540,8 +558,12 @@ Currently available methods:
 
 - **`"mmhc"`**: **Max-Min Hill-Climbing** - First learns an undirected skeleton via MMPC (Max-Min Parents and Children), then orients edges using hill-climbing with custom MDM score. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
 
-**Experimental/Under development:**
-- **`"tabu"`**: Tabu search - Mentioned in examples but may require additional setup. In the R package, `bnlearn::tabu` provides tabu search functionality. In Python, tabu search can potentially be achieved by passing `tabu_length` parameter to pgmpy's `HillClimbSearch` via `**kwargs` when using `method="hc"`.
+- **`"tabu"`**: **Tabu search** - Uses pgmpy's HillClimbSearch with tabu search enabled (via `tabu_length` parameter). Requires `pgmpy` (install with: `pip install mdmp[hc]`). Supports `tabu_length` parameter (default: 100), `max_iter` (default: 1000000), `epsilon` (default: 0.0001), and other pgmpy HillClimbSearch parameters via `**kwargs`.
+
+**Example with tabu search:**
+```python
+model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
+```
 
 **Registered but not yet implemented:**
 - **`"ipa"`**: Integer Programming Approach using GOBNILP - Registered but currently raises `NotImplementedError`. The R package supports this via GOBNILP integration. Future Python implementation would require GOBNILP binary installation.
@@ -645,10 +667,15 @@ This package is a Python port of the R package **mdmr**.
 
 ## Changelog
 
-### 0.6.2 (Initial Release)
+### 0.7.0 (Current Version)
 - Ported core functionality from R package mdmr
 - Implemented DLM filtering and smoothing
 - Implemented MDM structure learning (hill-climbing, tabu search, Max-Min Hill-Climbing)
 - Implemented plotting functions
 - Added comprehensive documentation
+- **Parallel Processing**: Added multiprocessing support for discount factor selection, filtering, and smoothing
+- **Progress Bars**: Integrated `tqdm` for visual progress tracking during long operations
+- **Performance Logging**: Added automatic timing and logging of total processing time
+- **Code Modularization**: Refactored code for better maintainability and testability
+- **Tabu Search**: Fully implemented tabu search algorithm with configurable parameters
 

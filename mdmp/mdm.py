@@ -5,7 +5,8 @@ This module implements the main MDM class that coordinates structure learning,
 discount factor selection, filtering, and smoothing.
 """
 
-from typing import Any, Dict, Optional, Union
+import time
+from typing import Any, Dict, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -48,7 +49,7 @@ class MDM:
     def __init__(
         self,
         data: Union[np.ndarray, pd.DataFrame],
-        method: str = "hc",
+        method: Literal["hc", "tabu", "mmhc"] = "hc", # "ipa" not yet implemented
         nbf: int = 15,
         delta: Optional[np.ndarray] = None,
         verbose: bool = True,
@@ -63,11 +64,18 @@ class MDM:
         data : np.ndarray or pd.DataFrame
             Multivariate time series data. Rows represent time points,
             columns represent nodes. Must be complete (no missing values).
-        method : str, optional
-            Method for structure learning. Options: "hc", "tabu", "ipa".
-            Default is "hc".
+        method : {"hc", "tabu", "mmhc"}, optional
+            Method for structure learning. Default is "hc".
             
-            Note: Methods "mmhc", "h2pc", and "rsmax2" are not yet implemented.
+            - **"hc"**: Hill-climbing using pgmpy (requires pgmpy).
+              Additional kwargs: max_iter, epsilon, show_progress, etc.
+            - **"tabu"**: Tabu search using pgmpy (requires pgmpy).
+              Additional kwargs: tabu_length (default: 100), max_iter (default: 1000000),
+              epsilon (default: 0.0001), show_progress (default: True), etc.
+            - **"mmhc"**: Max-Min Hill-Climbing using pgmpy (requires pgmpy).
+              Additional kwargs: max_iter, epsilon, show_progress, etc.
+            
+            Note: Methods "ipa", "h2pc", and "rsmax2" are not yet implemented.
         nbf : int, optional
             Burn-in time point for log predictive likelihood calculation. Default is 15.
         delta : np.ndarray, optional
@@ -82,7 +90,27 @@ class MDM:
             If None or 1, uses serial processing. If -1, uses all available CPU cores.
             If > 1, uses that many parallel workers. Default is None (serial processing).
         **kwargs
-            Additional arguments passed to StructureLearner.
+            Additional arguments passed to StructureLearner and algorithm-specific parameters:
+            
+            For "hc" and "tabu" methods (pgmpy HillClimbSearch):
+            - tabu_length : int, default 100 (only for "tabu" method)
+              Length of tabu list for tabu search.
+            - max_iter : int, default 1000000
+              Maximum number of iterations.
+            - epsilon : float, default 0.0001
+              Convergence threshold.
+            - show_progress : bool, default True
+              Show progress during structure learning.
+            - start_dag : Any, optional
+              Starting DAG structure.
+            - fixed_edges : set, optional
+              Set of edges that cannot be modified.
+            - max_indegree : int, optional
+              Maximum in-degree for any node.
+            - black_list : list, optional
+              List of edges that are forbidden.
+            - white_list : list, optional
+              List of edges that are required.
         
         Raises
         ------
@@ -90,11 +118,10 @@ class MDM:
             If data is not a numpy array or pandas DataFrame.
         ValueError
             If data dimensions are invalid, delta values are out of range, or
-            structure learning method is invalid.
+            structure learning method is invalid (not one of: "hc", "tabu", "mmhc").
         ImportError
-            If method="hc" and pgmpy is not installed (install with: pip install mdmp[hc]).
-        NotImplementedError
-            If method="ipa" (not yet implemented).
+            If method requires pgmpy and pgmpy is not installed
+            (install with: pip install mdmp[hc] or pip install pgmpy).
         
         Examples
         --------
@@ -103,8 +130,10 @@ class MDM:
         >>> from mdmp import MDM
         >>> # Create sample data
         >>> data = np.random.randn(100, 3)
-        >>> # Fit MDM model with parallel processing
+        >>> # Fit MDM model with hill-climbing
         >>> model = MDM(data, method="hc", nbf=15, verbose=False, n_jobs=-1)
+        >>> # Fit MDM model with tabu search
+        >>> model_tabu = MDM(data, method="tabu", tabu_length=50, max_iter=1000)
         >>> # Access results
         >>> print(model.adj_mat.shape)
         (3, 3)
@@ -147,6 +176,9 @@ class MDM:
             if np.any(delta < 0) or np.any(delta > 1):
                 raise ValueError("delta values must be between 0 and 1")
         self.delta = delta
+
+        # Start timing
+        start_time = time.time()
 
         # Learn structure
         if self.verbose:
@@ -196,6 +228,248 @@ class MDM:
             self.Filt['nt'], self.Filt['dt'], n_jobs=n_jobs, verbose=self.verbose
         )
 
+        # Log total processing time
+        elapsed_time = time.time() - start_time
+        if self.verbose:
+            # Add a newline to separate from progress bars
+            print()
+            if elapsed_time < 60:
+                print(f"MDM processing completed in {elapsed_time:.2f} seconds")
+            elif elapsed_time < 3600:
+                minutes = int(elapsed_time // 60)
+                seconds = elapsed_time % 60
+                print(f"MDM processing completed in {minutes}m {seconds:.2f}s")
+            else:
+                hours = int(elapsed_time // 3600)
+                minutes = int((elapsed_time % 3600) // 60)
+                seconds = elapsed_time % 60
+                print(f"MDM processing completed in {hours}h {minutes}m {seconds:.2f}s")
+
+    def _filter_nodes_serial(
+        self,
+        data: np.ndarray,
+        adj_mat: np.ndarray,
+        DF_hat: np.ndarray,
+        Nn: int,
+        verbose: bool
+    ) -> Dict[str, Any]:
+        """
+        Filter all nodes using serial processing.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Time series data (T x N).
+        adj_mat : np.ndarray
+            Adjacency matrix (N x N).
+        DF_hat : np.ndarray
+            Selected discount factors for each node (N,).
+        Nn : int
+            Number of nodes.
+        verbose : bool
+            Whether to show progress bar.
+        
+        Returns
+        -------
+        dict
+            Filtered estimates for all nodes.
+        """
+        mt = {}
+        Ct = {}
+        Rt = {}
+        nt = {}
+        dt = {}
+        ft = {}
+        Qt = {}
+        ets = {}
+        lpl = {}
+        row_names = {}  # Store parameter names for each node
+
+        # Create progress bar
+        pbar = get_progress_bar(
+            total=Nn,
+            desc="Filtering nodes",
+            disable=not verbose,
+            unit="nodes"
+        )
+
+        for i in range(Nn):
+            # Build design matrix and extract target series
+            Ft, parent_list = build_design_matrix(data, adj_mat, i)
+            Yt = extract_target_series(data, i)
+
+            # Run DLM filter
+            result = dlm_filter(Yt, Ft.T, delta=DF_hat[i])
+
+            # Store results
+            mt[i] = result['mt']
+            Ct[i] = result['Ct']
+            Rt[i] = result['Rt']
+            nt[i] = result['nt']
+            dt[i] = result['dt']
+            ft[i] = result['ft']
+            Qt[i] = result['Qt']
+            ets[i] = result['ets']
+            lpl[i] = result['lpl']
+
+            # Store parameter names for later use (will be used in plotting)
+            param_names = build_parameter_names(i, adj_mat, self.node_names)
+            row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
+            
+            if hasattr(pbar, 'update'):
+                pbar.update(1)
+        
+        if hasattr(pbar, 'close'):
+            pbar.close()
+
+        return {
+            'mt': mt,
+            'Ct': Ct,
+            'Rt': Rt,
+            'nt': nt,
+            'dt': dt,
+            'ft': ft,
+            'Qt': Qt,
+            'ets': ets,
+            'lpl': lpl,
+            'row_names': row_names
+        }
+
+    def _filter_nodes_parallel(
+        self,
+        data: np.ndarray,
+        adj_mat: np.ndarray,
+        DF_hat: np.ndarray,
+        Nn: int,
+        n_jobs: int,
+        verbose: bool
+    ) -> Dict[str, Any]:
+        """
+        Filter all nodes using parallel processing.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Time series data (T x N).
+        adj_mat : np.ndarray
+            Adjacency matrix (N x N).
+        DF_hat : np.ndarray
+            Selected discount factors for each node (N,).
+        Nn : int
+            Number of nodes.
+        n_jobs : int
+            Number of parallel workers.
+        verbose : bool
+            Whether to show progress bar.
+        
+        Returns
+        -------
+        dict
+            Filtered estimates for all nodes.
+        """
+        # Prepare arguments for all nodes
+        args_list = [
+            (i, data, adj_mat, DF_hat, self.node_names)
+            for i in range(Nn)
+        ]
+
+        # Process in parallel with progress tracking
+        results = process_map_with_progress(
+            _worker_filter_node,
+            args_list,
+            max_workers=n_jobs,
+            desc="Filtering nodes (parallel)",
+            disable=not verbose,
+            unit="nodes"
+        )
+
+        # Reorganize results into dictionaries
+        mt = {}
+        Ct = {}
+        Rt = {}
+        nt = {}
+        dt = {}
+        ft = {}
+        Qt = {}
+        ets = {}
+        lpl = {}
+        row_names = {}
+
+        for i, result_dict, param_names in results:
+            mt[i] = result_dict['mt']
+            Ct[i] = result_dict['Ct']
+            Rt[i] = result_dict['Rt']
+            nt[i] = result_dict['nt']
+            dt[i] = result_dict['dt']
+            ft[i] = result_dict['ft']
+            Qt[i] = result_dict['Qt']
+            ets[i] = result_dict['ets']
+            lpl[i] = result_dict['lpl']
+            row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
+
+        return {
+            'mt': mt,
+            'Ct': Ct,
+            'Rt': Rt,
+            'nt': nt,
+            'dt': dt,
+            'ft': ft,
+            'Qt': Qt,
+            'ets': ets,
+            'lpl': lpl,
+            'row_names': row_names
+        }
+
+    def _filter_nodes(
+        self,
+        data: np.ndarray,
+        adj_mat: np.ndarray,
+        DF_hat: np.ndarray,
+        Nn: int,
+        n_jobs: int,
+        verbose: bool
+    ) -> Dict[str, Any]:
+        """
+        Filter all nodes, automatically choosing between serial and parallel processing.
+        
+        Parameters
+        ----------
+        data : np.ndarray
+            Time series data (T x N).
+        adj_mat : np.ndarray
+            Adjacency matrix (N x N).
+        DF_hat : np.ndarray
+            Selected discount factors for each node (N,).
+        Nn : int
+            Number of nodes.
+        n_jobs : int
+            Number of parallel workers (1 for serial, >1 for parallel).
+        verbose : bool
+            Whether to show progress bar.
+        
+        Returns
+        -------
+        dict
+            Filtered estimates for all nodes.
+        """
+        if n_jobs == 1:
+            return self._filter_nodes_serial(
+                data=data,
+                adj_mat=adj_mat,
+                DF_hat=DF_hat,
+                Nn=Nn,
+                verbose=verbose
+            )
+        else:
+            return self._filter_nodes_parallel(
+                data=data,
+                adj_mat=adj_mat,
+                DF_hat=DF_hat,
+                Nn=Nn,
+                n_jobs=n_jobs,
+                verbose=verbose
+            )
+
     def _mdm_filter(
         self,
         data: np.ndarray,
@@ -228,117 +502,225 @@ class MDM:
             Filtered estimates for all nodes.
         """
         Nn = data.shape[1]  # Number of nodes
-        Nt = data.shape[0]  # Number of time points
-
-        # Determine number of jobs
         n_jobs_actual = _get_n_jobs(n_jobs, default=1)
 
-        if n_jobs_actual == 1:
-            # Serial processing with progress bar
-            mt = {}
-            Ct = {}
-            Rt = {}
-            nt = {}
-            dt = {}
-            ft = {}
-            Qt = {}
-            ets = {}
-            lpl = {}
-            row_names = {}  # Store parameter names for each node
+        return self._filter_nodes(
+            data=data,
+            adj_mat=adj_mat,
+            DF_hat=DF_hat,
+            Nn=Nn,
+            n_jobs=n_jobs_actual,
+            verbose=verbose
+        )
 
-            # Find connections
-            connections = np.where(adj_mat == 1)
+    def _smooth_nodes_serial(
+        self,
+        mt: Dict[int, np.ndarray],
+        Ct: Dict[int, np.ndarray],
+        Rt: Dict[int, np.ndarray],
+        nt: Dict[int, np.ndarray],
+        dt: Dict[int, np.ndarray],
+        Nn: int,
+        verbose: bool
+    ) -> Dict[str, Any]:
+        """
+        Smooth all nodes using serial processing.
+        
+        Parameters
+        ----------
+        mt : dict
+            Filtered posterior means.
+        Ct : dict
+            Filtered posterior variances.
+        Rt : dict
+            Prior variances.
+        nt : dict
+            Hyperparameters of precision.
+        dt : dict
+            Hyperparameters of precision.
+        Nn : int
+            Number of nodes.
+        verbose : bool
+            Whether to show progress bar.
+        
+        Returns
+        -------
+        dict
+            Smoothed estimates for all nodes.
+        """
+        smt = {}
+        sCt = {}
+        SE = {}
 
-            # Create progress bar
-            pbar = get_progress_bar(
-                total=Nn,
-                desc="Filtering nodes",
-                disable=not verbose,
-                unit="nodes"
-            )
+        # Create progress bar
+        pbar = get_progress_bar(
+            total=Nn,
+            desc="Smoothing nodes",
+            disable=not verbose,
+            unit="nodes"
+        )
 
-            for i in range(Nn):
-                # Build design matrix and extract target series
-                Ft, parent_list = build_design_matrix(data, adj_mat, i)
-                Yt = extract_target_series(data, i)
+        for i in range(Nn):
+            # Run DLM smooth
+            result = dlm_smooth(mt[i], Ct[i], Rt[i], nt[i], dt[i])
 
-                # Run DLM filter
-                result = dlm_filter(Yt, Ft.T, delta=DF_hat[i])
+            smt[i] = result['smt']
+            sCt[i] = result['sCt']
 
-                # Store results
-                mt[i] = result['mt']
-                Ct[i] = result['Ct']
-                Rt[i] = result['Rt']
-                nt[i] = result['nt']
-                dt[i] = result['dt']
-                ft[i] = result['ft']
-                Qt[i] = result['Qt']
-                ets[i] = result['ets']
-                lpl[i] = result['lpl']
-
-                # Store parameter names for later use (will be used in plotting)
-                param_names = build_parameter_names(i, adj_mat, self.node_names)
-                row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
-                
-                if hasattr(pbar, 'update'):
-                    pbar.update(1)
+            # Compute standard errors
+            if sCt[i].ndim == 2:  # Single parameter case
+                SE[i] = stats.t.ppf(0.975, nt[i][-1]) * np.sqrt(sCt[i])
+            else:  # Multiple parameters
+                SE_array = np.zeros((sCt[i].shape[2], sCt[i].shape[0]))
+                for j in range(sCt[i].shape[0]):
+                    SE_array[:, j] = (
+                        stats.t.ppf(0.975, nt[i][-1]) *
+                        np.sqrt(sCt[i][j, j, :])
+                    )
+                col_names = [f"SE_{name}" for name in range(sCt[i].shape[0])]
+                SE[i] = pd.DataFrame(SE_array, columns=col_names)
             
-            if hasattr(pbar, 'close'):
-                pbar.close()
-        else:
-            # Parallel processing with progress bar
-            # Prepare arguments for all nodes
-            args_list = [
-                (i, data, adj_mat, DF_hat, self.node_names)
-                for i in range(Nn)
-            ]
-
-            # Process in parallel with progress tracking
-            results = process_map_with_progress(
-                _worker_filter_node,
-                args_list,
-                max_workers=n_jobs_actual,
-                desc="Filtering nodes (parallel)",
-                disable=not verbose,
-                unit="nodes"
-            )
-
-            # Reorganize results into dictionaries
-            mt = {}
-            Ct = {}
-            Rt = {}
-            nt = {}
-            dt = {}
-            ft = {}
-            Qt = {}
-            ets = {}
-            lpl = {}
-            row_names = {}
-
-            for i, result_dict, param_names in results:
-                mt[i] = result_dict['mt']
-                Ct[i] = result_dict['Ct']
-                Rt[i] = result_dict['Rt']
-                nt[i] = result_dict['nt']
-                dt[i] = result_dict['dt']
-                ft[i] = result_dict['ft']
-                Qt[i] = result_dict['Qt']
-                ets[i] = result_dict['ets']
-                lpl[i] = result_dict['lpl']
-                row_names[i] = param_names[:mt[i].shape[0]] if mt[i].ndim == 2 else param_names[:1]
+            if hasattr(pbar, 'update'):
+                pbar.update(1)
+        
+        if hasattr(pbar, 'close'):
+            pbar.close()
 
         return {
-            'mt': mt,
-            'Ct': Ct,
-            'Rt': Rt,
-            'nt': nt,
-            'dt': dt,
-            'ft': ft,
-            'Qt': Qt,
-            'ets': ets,
-            'lpl': lpl,
-            'row_names': row_names  # Store parameter names
+            'smt': smt,
+            'sCt': sCt,
+            'SE': SE
         }
+
+    def _smooth_nodes_parallel(
+        self,
+        mt: Dict[int, np.ndarray],
+        Ct: Dict[int, np.ndarray],
+        Rt: Dict[int, np.ndarray],
+        nt: Dict[int, np.ndarray],
+        dt: Dict[int, np.ndarray],
+        Nn: int,
+        n_jobs: int,
+        verbose: bool
+    ) -> Dict[str, Any]:
+        """
+        Smooth all nodes using parallel processing.
+        
+        Parameters
+        ----------
+        mt : dict
+            Filtered posterior means.
+        Ct : dict
+            Filtered posterior variances.
+        Rt : dict
+            Prior variances.
+        nt : dict
+            Hyperparameters of precision.
+        dt : dict
+            Hyperparameters of precision.
+        Nn : int
+            Number of nodes.
+        n_jobs : int
+            Number of parallel workers.
+        verbose : bool
+            Whether to show progress bar.
+        
+        Returns
+        -------
+        dict
+            Smoothed estimates for all nodes.
+        """
+        # Prepare arguments for all nodes
+        args_list = [
+            (i, mt, Ct, Rt, nt, dt)
+            for i in range(Nn)
+        ]
+
+        # Process in parallel with progress tracking
+        results = process_map_with_progress(
+            _worker_smooth_node,
+            args_list,
+            max_workers=n_jobs,
+            desc="Smoothing nodes (parallel)",
+            disable=not verbose,
+            unit="nodes"
+        )
+
+        # Reorganize results into dictionaries
+        smt = {}
+        sCt = {}
+        SE = {}
+
+        for i, result_dict in results:
+            smt[i] = result_dict['smt']
+            sCt[i] = result_dict['sCt']
+            SE[i] = result_dict['SE']
+
+        return {
+            'smt': smt,
+            'sCt': sCt,
+            'SE': SE
+        }
+
+    def _smooth_nodes(
+        self,
+        mt: Dict[int, np.ndarray],
+        Ct: Dict[int, np.ndarray],
+        Rt: Dict[int, np.ndarray],
+        nt: Dict[int, np.ndarray],
+        dt: Dict[int, np.ndarray],
+        Nn: int,
+        n_jobs: int,
+        verbose: bool
+    ) -> Dict[str, Any]:
+        """
+        Smooth all nodes, automatically choosing between serial and parallel processing.
+        
+        Parameters
+        ----------
+        mt : dict
+            Filtered posterior means.
+        Ct : dict
+            Filtered posterior variances.
+        Rt : dict
+            Prior variances.
+        nt : dict
+            Hyperparameters of precision.
+        dt : dict
+            Hyperparameters of precision.
+        Nn : int
+            Number of nodes.
+        n_jobs : int
+            Number of parallel workers (1 for serial, >1 for parallel).
+        verbose : bool
+            Whether to show progress bar.
+        
+        Returns
+        -------
+        dict
+            Smoothed estimates for all nodes.
+        """
+        if n_jobs == 1:
+            return self._smooth_nodes_serial(
+                mt=mt,
+                Ct=Ct,
+                Rt=Rt,
+                nt=nt,
+                dt=dt,
+                Nn=Nn,
+                verbose=verbose
+            )
+        else:
+            return self._smooth_nodes_parallel(
+                mt=mt,
+                Ct=Ct,
+                Rt=Rt,
+                nt=nt,
+                dt=dt,
+                Nn=Nn,
+                n_jobs=n_jobs,
+                verbose=verbose
+            )
 
     def _mdm_smooth(
         self,
@@ -378,82 +760,18 @@ class MDM:
             Smoothed estimates for all nodes.
         """
         Nn = len(mt)
-
-        # Determine number of jobs
         n_jobs_actual = _get_n_jobs(n_jobs, default=1)
 
-        if n_jobs_actual == 1:
-            # Serial processing with progress bar
-            smt = {}
-            sCt = {}
-            SE = {}
-
-            # Create progress bar
-            pbar = get_progress_bar(
-                total=Nn,
-                desc="Smoothing nodes",
-                disable=not verbose,
-                unit="nodes"
-            )
-
-            for i in range(Nn):
-                # Run DLM smooth
-                result = dlm_smooth(mt[i], Ct[i], Rt[i], nt[i], dt[i])
-
-                smt[i] = result['smt']
-                sCt[i] = result['sCt']
-
-                # Compute standard errors
-                if sCt[i].ndim == 2:  # Single parameter case
-                    SE[i] = stats.t.ppf(0.975, nt[i][-1]) * np.sqrt(sCt[i])
-                else:  # Multiple parameters
-                    SE_array = np.zeros((sCt[i].shape[2], sCt[i].shape[0]))
-                    for j in range(sCt[i].shape[0]):
-                        SE_array[:, j] = (
-                            stats.t.ppf(0.975, nt[i][-1]) *
-                            np.sqrt(sCt[i][j, j, :])
-                        )
-                    col_names = [f"SE_{name}" for name in range(sCt[i].shape[0])]
-                    SE[i] = pd.DataFrame(SE_array, columns=col_names)
-                
-                if hasattr(pbar, 'update'):
-                    pbar.update(1)
-            
-            if hasattr(pbar, 'close'):
-                pbar.close()
-        else:
-            # Parallel processing with progress bar
-            # Prepare arguments for all nodes
-            args_list = [
-                (i, mt, Ct, Rt, nt, dt)
-                for i in range(Nn)
-            ]
-
-            # Process in parallel with progress tracking
-            results = process_map_with_progress(
-                _worker_smooth_node,
-                args_list,
-                max_workers=n_jobs_actual,
-                desc="Smoothing nodes (parallel)",
-                disable=not verbose,
-                unit="nodes"
-            )
-
-            # Reorganize results into dictionaries
-            smt = {}
-            sCt = {}
-            SE = {}
-
-            for i, result_dict in results:
-                smt[i] = result_dict['smt']
-                sCt[i] = result_dict['sCt']
-                SE[i] = result_dict['SE']
-
-        return {
-            'smt': smt,
-            'sCt': sCt,
-            'SE': SE
-        }
+        return self._smooth_nodes(
+            mt=mt,
+            Ct=Ct,
+            Rt=Rt,
+            nt=nt,
+            dt=dt,
+            Nn=Nn,
+            n_jobs=n_jobs_actual,
+            verbose=verbose
+        )
 
     def __repr__(self) -> str:
         """String representation of MDM object."""
