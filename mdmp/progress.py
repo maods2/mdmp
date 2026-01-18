@@ -5,7 +5,7 @@ This module provides progress bar functionality using tqdm for visualizing
 MDM processing progress, especially useful for large time series.
 """
 
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable, Optional
 
 try:
     from tqdm import tqdm
@@ -18,7 +18,7 @@ except ImportError:
         if iterable is None:
             return None
         return iterable
-    
+
     def process_map(*args, **kwargs):
         from concurrent.futures import ProcessPoolExecutor
         func = args[0]
@@ -60,14 +60,14 @@ def get_progress_bar(
     """
     if not TQDM_AVAILABLE or disable:
         return iterable
-    
+
     tqdm_kwargs = {
         'desc': desc,
         'total': total,
         'disable': disable,
         **kwargs
     }
-    
+
     if iterable is None:
         # Return a progress bar that can be updated manually
         return tqdm(**tqdm_kwargs)
@@ -114,7 +114,7 @@ def process_map_with_progress(
             from concurrent.futures import ProcessPoolExecutor
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 return list(executor.map(func, iterable))
-    
+
     # Use tqdm's process_map for progress tracking
     # For single worker, still use tqdm for progress display
     if max_workers == 1:
@@ -135,15 +135,15 @@ def process_map_with_progress(
 class ProgressContext:
     """
     Context manager for managing nested progress bars.
-    
+
     This class helps manage multiple progress bars that may be nested
     or sequential, ensuring proper display and cleanup.
     """
-    
+
     def __init__(self, verbose: bool = True):
         """
         Initialize progress context.
-        
+
         Parameters
         ----------
         verbose : bool, optional
@@ -151,7 +151,7 @@ class ProgressContext:
         """
         self.verbose = verbose
         self.bars = []
-    
+
     def create_bar(
         self,
         iterable: Optional[Iterable] = None,
@@ -161,7 +161,7 @@ class ProgressContext:
     ) -> Any:
         """
         Create a progress bar within this context.
-        
+
         Parameters
         ----------
         iterable : iterable, optional
@@ -172,7 +172,7 @@ class ProgressContext:
             Total number of items.
         **kwargs
             Additional arguments for tqdm.
-            
+
         Returns
         -------
         Progress bar or iterable
@@ -187,10 +187,10 @@ class ProgressContext:
         if hasattr(bar, '__enter__'):
             self.bars.append(bar)
         return bar
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         # Close all progress bars
         for bar in self.bars:

@@ -6,8 +6,7 @@ MDM operations using multiprocessing.
 """
 
 import os
-from concurrent.futures import ProcessPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 

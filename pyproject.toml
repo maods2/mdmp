@@ -57,7 +57,10 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["mdmp", "mdmp.structure"]
+# Use automatic package discovery to include all subpackages
+# This includes: mdmp, mdmp.structure, mdmp.processing, mdmp.model, 
+# mdmp.types, mdmp.plotting, and any future subpackages
+packages = {find = {}}
 
 [tool.setuptools.package-dir]
 "" = "."

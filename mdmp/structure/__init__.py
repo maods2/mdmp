@@ -17,7 +17,7 @@ from .registry import get_algorithm, list_algorithms, register_algorithm
 # Register default algorithms
 register_algorithm("hc", HillClimbingAlgorithm)
 register_algorithm("tabu", TabuAlgorithm)
-# register_algorithm("ipa", IpaAlgorithm)
+register_algorithm("ipa", IpaAlgorithm)  # Registered but not implemented
 register_algorithm("mmhc", MMHCAlgorithm)
 
 __all__ = [

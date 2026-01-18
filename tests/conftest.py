@@ -11,7 +11,7 @@ import pytest
 def sample_data() -> np.ndarray:
     """
     Generate sample time series data for testing.
-    
+
     Returns
     -------
     np.ndarray
@@ -28,10 +28,10 @@ def sample_data() -> np.ndarray:
 def small_dag_adjacency() -> np.ndarray:
     """
     Create a small known DAG structure for testing.
-    
+
     Structure: 0 -> 1, 0 -> 2, 1 -> 2
     (Node 0 is parent of 1 and 2, Node 1 is parent of 2)
-    
+
     Returns
     -------
     np.ndarray
@@ -48,7 +48,7 @@ def small_dag_adjacency() -> np.ndarray:
 def empty_dag_adjacency() -> np.ndarray:
     """
     Create an empty DAG (no edges) for testing.
-    
+
     Returns
     -------
     np.ndarray
@@ -61,7 +61,7 @@ def empty_dag_adjacency() -> np.ndarray:
 def default_delta() -> np.ndarray:
     """
     Get default discount factor sequence for testing.
-    
+
     Returns
     -------
     np.ndarray

@@ -50,11 +50,11 @@ class StructureLearner:
         method : str, optional
             Learning method. Options: "hc", "tabu", "mmhc".
             Default is "hc".
-            
+
             - "hc": Hill-climbing using pgmpy (requires pgmpy)
             - "tabu": Tabu search using pgmpy (requires pgmpy)
             - "mmhc": Max-Min Hill-Climbing using pgmpy (requires pgmpy)
-            
+
             Note: Methods "ipa", "h2pc", and "rsmax2" are not yet implemented.
         nbf : int, optional
             Burn-in time point. Default is 15.

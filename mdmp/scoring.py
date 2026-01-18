@@ -10,198 +10,13 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 from scipy.optimize import minimize_scalar
 
+from .constants import DEFAULT_NBF
 from .dlm import dlm_filter
-from .parallel import _get_n_jobs, _worker_select_delta_node
-from .progress import get_progress_bar, process_map_with_progress
-from .utils import DEFAULT_NBF, build_design_matrix, extract_target_series, get_default_delta
+from .processing.scoring import ScoringProcessor
+from .utils import build_design_matrix, extract_target_series, get_default_delta
 
-
-def _evaluate_lpl_serial(
-    delta: np.ndarray,
-    design_matrices: Dict[int, np.ndarray],
-    target_series: Dict[int, np.ndarray],
-    nbf: int,
-    nd: int,
-    Nn: int,
-    verbose: bool
-) -> np.ndarray:
-    """
-    Evaluate log predictive likelihood for all (delta, node) combinations using serial processing.
-    
-    Parameters
-    ----------
-    delta : np.ndarray
-        Array of discount factors.
-    design_matrices : dict
-        Dictionary mapping node index to design matrix.
-    target_series : dict
-        Dictionary mapping node index to target series.
-    nbf : int
-        Burn-in time point.
-    nd : int
-        Number of discount factors.
-    Nn : int
-        Number of nodes.
-    verbose : bool
-        Whether to show progress bar.
-    
-    Returns
-    -------
-    np.ndarray
-        Log predictive likelihoods for each delta and node (nd, Nn).
-    """
-    lpldet = np.zeros((nd, Nn))
-    total_combinations = nd * Nn
-    
-    pbar = get_progress_bar(
-        total=total_combinations,
-        desc="Selecting discount factors",
-        disable=not verbose,
-        unit="combinations"
-    )
-    
-    for k in range(nd):
-        for i in range(Nn):
-            Ft = design_matrices[i]
-            Yt = target_series[i]
-
-            # Run DLM filter
-            result = dlm_filter(Yt, Ft.T, delta=delta[k])
-            lpldet[k, i] = np.sum(result['lpl'][nbf:])
-            
-            if hasattr(pbar, 'update'):
-                pbar.update(1)
-    
-    if hasattr(pbar, 'close'):
-        pbar.close()
-    
-    return lpldet
-
-
-def _evaluate_lpl_parallel(
-    delta: np.ndarray,
-    design_matrices: Dict[int, np.ndarray],
-    target_series: Dict[int, np.ndarray],
-    nbf: int,
-    nd: int,
-    Nn: int,
-    n_jobs: int,
-    verbose: bool
-) -> np.ndarray:
-    """
-    Evaluate log predictive likelihood for all (delta, node) combinations using parallel processing.
-    
-    Parameters
-    ----------
-    delta : np.ndarray
-        Array of discount factors.
-    design_matrices : dict
-        Dictionary mapping node index to design matrix.
-    target_series : dict
-        Dictionary mapping node index to target series.
-    nbf : int
-        Burn-in time point.
-    nd : int
-        Number of discount factors.
-    Nn : int
-        Number of nodes.
-    n_jobs : int
-        Number of parallel workers.
-    verbose : bool
-        Whether to show progress bar.
-    
-    Returns
-    -------
-    np.ndarray
-        Log predictive likelihoods for each delta and node (nd, Nn).
-    """
-    lpldet = np.zeros((nd, Nn))
-    
-    # Prepare arguments for all (delta, node) combinations
-    args_list = []
-    for k in range(nd):
-        for i in range(Nn):
-            args_list.append((
-                k, i, target_series[i], design_matrices[i], delta[k], nbf
-            ))
-
-    # Process in parallel with progress tracking
-    results = process_map_with_progress(
-        _worker_select_delta_node,
-        args_list,
-        max_workers=n_jobs,
-        desc="Selecting discount factors (parallel)",
-        disable=not verbose,
-        unit="combinations"
-    )
-
-    # Aggregate results
-    for k, i, lpl_sum in results:
-        lpldet[k, i] = lpl_sum
-    
-    return lpldet
-
-
-def _evaluate_lpl_combinations(
-    delta: np.ndarray,
-    design_matrices: Dict[int, np.ndarray],
-    target_series: Dict[int, np.ndarray],
-    nbf: int,
-    nd: int,
-    Nn: int,
-    n_jobs: int,
-    verbose: bool
-) -> np.ndarray:
-    """
-    Evaluate log predictive likelihood for all (delta, node) combinations.
-    
-    Automatically chooses between serial and parallel processing based on n_jobs.
-    
-    Parameters
-    ----------
-    delta : np.ndarray
-        Array of discount factors.
-    design_matrices : dict
-        Dictionary mapping node index to design matrix.
-    target_series : dict
-        Dictionary mapping node index to target series.
-    nbf : int
-        Burn-in time point.
-    nd : int
-        Number of discount factors.
-    Nn : int
-        Number of nodes.
-    n_jobs : int
-        Number of parallel workers (1 for serial, >1 for parallel).
-    verbose : bool
-        Whether to show progress bar.
-    
-    Returns
-    -------
-    np.ndarray
-        Log predictive likelihoods for each delta and node (nd, Nn).
-    """
-    if n_jobs == 1:
-        return _evaluate_lpl_serial(
-            delta=delta,
-            design_matrices=design_matrices,
-            target_series=target_series,
-            nbf=nbf,
-            nd=nd,
-            Nn=Nn,
-            verbose=verbose
-        )
-    else:
-        return _evaluate_lpl_parallel(
-            delta=delta,
-            design_matrices=design_matrices,
-            target_series=target_series,
-            nbf=nbf,
-            nd=nd,
-            Nn=Nn,
-            n_jobs=n_jobs,
-            verbose=verbose
-        )
+# Removed: _evaluate_lpl_serial, _evaluate_lpl_parallel, _evaluate_lpl_combinations
+# These are now handled by ScoringProcessor in processing/scoring.py
 
 
 def select_discount_factors(
@@ -240,12 +55,12 @@ def select_discount_factors(
         Dictionary containing:
         - lpldet : Log predictive likelihoods for each delta and node (nd, N)
         - DF_hat : Selected discount factors for each node (N,)
-    
+
     Raises
     ------
     ValueError
         If data and adj_mat dimensions are incompatible.
-    
+
     Examples
     --------
     >>> import numpy as np
@@ -271,19 +86,13 @@ def select_discount_factors(
         design_matrices[i], _ = build_design_matrix(data, adj_mat, i)
         target_series[i] = extract_target_series(data, i)
 
-    # Determine number of jobs
-    n_jobs_actual = _get_n_jobs(n_jobs, default=1)
-
-    # Evaluate log predictive likelihood for each delta and node
-    lpldet = _evaluate_lpl_combinations(
+    # Evaluate log predictive likelihood for each delta and node using processor
+    processor = ScoringProcessor(n_jobs=n_jobs, verbose=verbose)
+    lpldet = processor.evaluate_lpl(
         delta=delta,
         design_matrices=design_matrices,
         target_series=target_series,
-        nbf=nbf,
-        nd=nd,
-        Nn=Nn,
-        n_jobs=n_jobs_actual,
-        verbose=verbose
+        nbf=nbf
     )
 
     # Select best delta for each node (handling NaN values)
@@ -303,7 +112,7 @@ def _select_best_deltas(
 ) -> np.ndarray:
     """
     Select the best discount factor for each node based on log predictive likelihood.
-    
+
     Parameters
     ----------
     lpldet : np.ndarray
@@ -314,7 +123,7 @@ def _select_best_deltas(
         Number of nodes.
     default_delta : float, optional
         Default discount factor if all values are NaN. Default is 0.9.
-    
+
     Returns
     -------
     np.ndarray
@@ -360,12 +169,12 @@ def compute_logpl(
     -------
     float
         Negative log predictive likelihood.
-    
+
     Raises
     ------
     ValueError
         If node_idx is out of bounds or adj_mat dimensions don't match data.
-    
+
     Examples
     --------
     >>> import numpy as np

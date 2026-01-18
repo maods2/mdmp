@@ -6,9 +6,8 @@ functionality when verbose is enabled.
 """
 
 import numpy as np
-import pytest
 
-from mdmp.progress import get_progress_bar, process_map_with_progress, TQDM_AVAILABLE
+from mdmp.progress import TQDM_AVAILABLE, get_progress_bar, process_map_with_progress
 from mdmp.scoring import select_discount_factors
 from mdmp.utils import DEFAULT_NBF
 
@@ -17,7 +16,7 @@ def test_get_progress_bar_basic():
     """Test basic progress bar creation."""
     iterable = range(10)
     result = get_progress_bar(iterable, desc="Test", disable=True)
-    
+
     # Should return iterable when disabled
     assert list(result) == list(iterable)
 
@@ -26,7 +25,7 @@ def test_get_progress_bar_with_verbose():
     """Test progress bar with verbose enabled."""
     iterable = range(5)
     result = get_progress_bar(iterable, desc="Test", disable=False)
-    
+
     # Should return something iterable
     assert hasattr(result, '__iter__')
     # When not disabled, should be able to iterate
@@ -43,7 +42,7 @@ def test_select_discount_factors_with_progress(sample_data, small_dag_adjacency,
         delta=default_delta,
         verbose=False
     )
-    
+
     # Test with verbose=True (with progress bar)
     result_with_progress = select_discount_factors(
         sample_data,
@@ -52,7 +51,7 @@ def test_select_discount_factors_with_progress(sample_data, small_dag_adjacency,
         delta=default_delta,
         verbose=True
     )
-    
+
     # Results should be identical
     np.testing.assert_array_almost_equal(
         result_no_progress['lpldet'],
@@ -70,7 +69,7 @@ def test_select_discount_factors_parallel_with_progress(sample_data, small_dag_a
     """Test select_discount_factors with parallel processing and progress."""
     import os
     n_cores = os.cpu_count() or 1
-    
+
     if n_cores >= 2:
         # Test with parallel processing and progress
         result = select_discount_factors(
@@ -81,7 +80,7 @@ def test_select_discount_factors_parallel_with_progress(sample_data, small_dag_a
             n_jobs=2,
             verbose=True
         )
-        
+
         # Should produce valid results
         assert 'lpldet' in result
         assert 'DF_hat' in result
@@ -133,9 +132,9 @@ def test_process_map_with_progress():
     """Test process_map_with_progress function."""
     def square(x):
         return x ** 2
-    
+
     items = list(range(10))
-    
+
     # Test with single worker (serial)
     results = process_map_with_progress(
         square,
@@ -143,7 +142,7 @@ def test_process_map_with_progress():
         max_workers=1,
         disable=True  # Disable progress for test
     )
-    
+
     assert len(results) == 10
     assert results[0] == 0
     assert results[5] == 25
@@ -154,7 +153,7 @@ def test_tqdm_availability():
     """Test that tqdm availability is correctly detected."""
     # TQDM_AVAILABLE should be a boolean
     assert isinstance(TQDM_AVAILABLE, bool)
-    
+
     # If tqdm is available, we should be able to use it
     if TQDM_AVAILABLE:
         from tqdm import tqdm
@@ -166,7 +165,7 @@ def test_progress_bar_fallback():
     # This test verifies that the code doesn't break if tqdm is not available
     # The get_progress_bar function should handle this gracefully
     result = get_progress_bar(range(5), desc="Test", disable=False)
-    
+
     # Should still be iterable
     assert hasattr(result, '__iter__')
     assert len(list(result)) == 5

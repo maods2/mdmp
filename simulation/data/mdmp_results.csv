@@ -7,7 +7,7 @@ npv,1.0,4var,mdmp
 directional_accuracy,1.0,4var,mdmp
 num_edges_estimated,4.0,4var,mdmp
 num_edges_true,4.0,4var,mdmp
-computation_time,5.933727264404297,4var,mdmp
+computation_time,7.889880418777466,4var,mdmp
 accuracy,1.0,5var,mdmp
 sensitivity,1.0,5var,mdmp
 specificity,1.0,5var,mdmp
@@ -16,4 +16,4 @@ npv,1.0,5var,mdmp
 directional_accuracy,1.0,5var,mdmp
 num_edges_estimated,5.0,5var,mdmp
 num_edges_true,5.0,5var,mdmp
-computation_time,5.679550886154175,5var,mdmp
+computation_time,6.7435736656188965,5var,mdmp
