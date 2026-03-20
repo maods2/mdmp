@@ -16,9 +16,11 @@ mdmp/simulation/
 ├── 04_mdmp_structure_learning.ipynb   # Python notebook: MDMP structure learning
 ├── 05_mdmr_structure_learning.ipynb   # R notebook: MDMR structure learning
 ├── 06_comparison_metrics.ipynb        # Python notebook: Compare MDMP vs MDMR
-└── data/                              # Generated simulation data (created automatically)
-    ├── dag_4var_simulated.csv
-    ├── dag_4var_true_adjacency.csv
+├── 07_vts_multi_individual_analysis.ipynb  # VTS methods on multi-individual simulated DAGs
+├── data/                              # Generated simulation data (created automatically)
+└── multi-individual/                  # Multi-individual data (n_individuals > 1)
+    ├── dag_3var_simulated.csv
+    ├── dag_3var_true_adjacency.csv
     ├── dag_5var_simulated.csv
     ├── dag_5var_true_adjacency.csv
     └── ... (result files)
@@ -36,11 +38,13 @@ Run the Python simulation script to generate synthetic time series data:
 python simulate_dags.py
 ```
 
-This will create:
-- `data/dag_4var_simulated.csv` - 4-variable time series data
-- `data/dag_4var_true_adjacency.csv` - True adjacency matrix for 4-variable DAG
-- `data/dag_5var_simulated.csv` - 5-variable time series data
+This will create (default: single scenario W=0.01, V=100, T=200):
+- `data/dag_3var_simulated.csv` - 3-variable time series data (Figura 5)
+- `data/dag_3var_true_adjacency.csv` - True adjacency matrix for 3-variable DAG
+- `data/dag_5var_simulated.csv` - 5-variable time series data (Figura 6)
 - `data/dag_5var_true_adjacency.csv` - True adjacency matrix for 5-variable DAG
+
+For full study (all W, V, T combinations): use `run_simulations(w_values=W_VALUES, v_values=V_VALUES, t_values=T_VALUES)`.
 
 ### 2. Run MDMP Structure Learning
 
@@ -60,7 +64,22 @@ Execute the R notebook `05_mdmr_structure_learning.ipynb` to:
 
 **Note:** This notebook requires the `mdmr` R package to be installed and uses R kernel in Jupyter.
 
-### 4. Compare Results
+### 4. VTS on Multi-Individual Data (Optional)
+
+Generate multi-individual data and run VTS analysis:
+
+```bash
+cd simulation
+python -c "from simulate_dags import run_simulations; run_simulations(output_dir='multi-individual/', n_individuals=5, w_values=(0.01,), v_values=(100.0,), t_values=(200,))"
+```
+
+Then execute `07_vts_multi_individual_analysis.ipynb` to:
+- Apply VTS (mean and concatenation) to multi-individual simulated DAGs
+- Fit MDM on VTS representations
+- Compare learned structures with true DAG
+- Visualize final structures
+
+### 5. Compare Results
 
 Execute the Python notebook `06_comparison_metrics.ipynb` to:
 - Load results from both MDMP and MDMR
@@ -69,18 +88,19 @@ Execute the Python notebook `06_comparison_metrics.ipynb` to:
 
 ## Simulated DAG Structures
 
-### 4-Variable DAG
+Based on Capítulo 5 - Estudos de Simulação.
+
+### 3-Variable DAG (Figura 5)
 
 ```
-Y3 -> Y1 -> Y2
-Y3 -> Y4 -> Y2
+Y1 -> Y2 -> Y3
 ```
 
-- **Y3**: Root node (no parents)
-- **Y1, Y4**: Children of Y3
-- **Y2**: Child of both Y1 and Y4
+- **Y1**: Root node (intercept only)
+- **Y2**: Child of Y1
+- **Y3**: Child of Y2 (chain structure)
 
-### 5-Variable DAG
+### 5-Variable DAG (Figura 6)
 
 ```
 Y1 -> Y2 -> Y4
@@ -98,15 +118,24 @@ Y2 -> Y5
 ### `simulate_dags.py`
 
 Python script containing functions to simulate DAG structures:
-- `simulate_dag_4var()` - Generates 4-variable DAG time series
-- `simulate_dag_5var()` - Generates 5-variable DAG time series
+- `simulate_dag_3var()` - Generates 3-variable DAG time series (Figura 5)
+- `simulate_dag_5var()` - Generates 5-variable DAG time series (Figura 6)
 - `run_simulations()` - Main function to run simulations and save CSV files
 
-**Parameters:**
+**Parameters (per DAG function):**
 - `seed`: Random seed for reproducibility (default: 1564)
 - `n`: Sample size / number of time points (default: 200)
 - `V`: Observational variance (default: 100.0)
 - `W`: System variance (default: 0.1)
+- `n_individuals`: Number of individuals (same topology, different seeds) (default: 1)
+- `base_seed`: Base seed for individuals; individual i uses base_seed + i
+
+**Parameters (run_simulations):**
+- `output_dir`: Output directory (default: "data/")
+- `base_seed`: Base seed for individuals (default: 1564)
+- `n_individuals`: Individuals per (W,V,T) combination (default: 1)
+- `w_values`, `v_values`, `t_values`: Parameter grids (default: W={0.0001, 0.01, 100}, V={0.01, 100}, T={100, 200})
+- `write_legacy_names`: If True and single combo, also write dag_3var_simulated.csv etc. (default: False)
 
 ### `simulation_utils.R`
 
@@ -174,9 +203,16 @@ Both notebooks compute the following metrics:
 ## Example Usage
 
 ```python
-# Generate data
+# Generate data (default: single scenario with legacy filenames for notebooks)
 from simulate_dags import run_simulations
-run_simulations(output_dir="./data/", seed_4var=1564, seed_5var=1564)
+run_simulations(output_dir="./data/", write_legacy_names=True)
+
+# Generate N individuals with different seeds
+run_simulations(output_dir="./data/", n_individuals=5, write_legacy_names=True)
+
+# Full study: all W, V, T combinations
+from simulate_dags import run_simulations, W_VALUES, V_VALUES, T_VALUES
+run_simulations(output_dir="./data/", w_values=W_VALUES, v_values=V_VALUES, t_values=T_VALUES)
 
 # Then run the notebooks in order: 04 -> 05 -> 06
 ```

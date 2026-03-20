@@ -13,6 +13,7 @@ This package is a Python port of the R package **mdmr** developed by [Lilia Cost
 - **Progress Tracking**: Visual progress bars for long-running operations (when `verbose=True`)
 - **Performance Logging**: Automatic timing and logging of total processing time
 - **Visualization**: Comprehensive plotting tools for DAG structures, dynamic parameters, marginal posteriors, and animated heatmaps
+- **Virtual Typical Subject (VTS)**: Compute a representative subject from multi-subject time series via concatenation-based or mean-based aggregation; compare methods and integrate with MDM
 
 ## MDM Algorithm Flow
 
@@ -581,6 +582,26 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 3. **`plot_marginal()`**: Plot marginal posterior for a target node
 4. **`plot_stream()`**: Plot parent contributions to a child node
 5. **`plot_idag()`**: Create animated heatmap of dynamic parameters
+
+### Virtual Typical Subject (VTS)
+
+For multi-subject multivariate time series, compute a representative subject:
+
+```python
+from mdmp import compute_vts, compare_vts_methods, MDM
+
+# Data: list of (T_s x N) arrays, 3D (I x k x N), or DataFrame with subject_id
+result = compute_vts(data, method="mean")      # Mean-based: avg per subject, then across
+result = compute_vts(data, method="concatenation")  # Concatenate along time
+
+# Compare methods
+comparison = compare_vts_methods(data, metrics=["mse", "correlation"])
+
+# Use VTS with MDM
+model = MDM(result.vts_data, method="hc")
+```
+
+See `examples/04_vts_usage.py` and `notebooks/04_vts.ipynb` for full examples.
 
 ## API Reference
 

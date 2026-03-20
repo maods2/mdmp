@@ -69,6 +69,21 @@ Demonstrates advanced usage scenarios:
 python examples/04_advanced_usage.py
 ```
 
+### 04_vts_usage.py
+**Virtual Typical Subject (VTS)**
+
+Demonstrates multi-subject aggregation for computing a representative subject:
+- Creating multi-subject data (list, 3D array, DataFrame)
+- Mean-based VTS: average per subject, then across subjects
+- Concatenation-based VTS: stack along time for pooled MDM
+- Comparing methods and evaluating representation quality
+- Using VTS output with MDM for structure learning
+
+**Run it:**
+```bash
+python examples/04_vts_usage.py
+```
+
 ## Prerequisites
 
 All examples use synthetic data and don't require external data files. However, they do require:
@@ -98,6 +113,7 @@ cd examples
 python 01_basic_usage.py
 python 02_structure_learning.py
 python 03_plotting.py
+python 04_vts_usage.py
 ```
 
 ## Notes
