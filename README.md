@@ -159,8 +159,21 @@ pip install .
 ### Optional Dependencies
 
 - **pgmpy** (>=0.1.25): Required for hill-climbing structure learning method
+- **notears**: Required for NOTEARS structure learning method (not on PyPI; install from GitHub, see below)
 - **pytest** (>=7.0.0): For running unit tests
 - **pytest-cov**: For test coverage reports (development only)
+
+#### Installing NOTEARS (from GitHub)
+
+The NOTEARS library is not available on PyPI. Install it from GitHub to use the `method="notears"` structure learning option:
+
+```bash
+# Install from official repository
+pip install git+https://github.com/xunzheng/notears.git
+
+# Or install from a local clone (e.g., if notears is in the same repo)
+pip install -e ../notears
+```
 
 ## Development Setup
 
