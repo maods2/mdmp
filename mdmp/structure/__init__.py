@@ -9,6 +9,7 @@ from .algorithms import (
     HillClimbingAlgorithm,
     IpaAlgorithm,
     MMHCAlgorithm,
+    NotearsAlgorithm,
 )
 from .learner import StructureLearner
 from .registry import get_algorithm, list_algorithms, register_algorithm
@@ -17,6 +18,7 @@ from .registry import get_algorithm, list_algorithms, register_algorithm
 register_algorithm("hc", HillClimbingAlgorithm)
 register_algorithm("ipa", IpaAlgorithm)
 register_algorithm("mmhc", MMHCAlgorithm)
+register_algorithm("notears", NotearsAlgorithm)
 
 __all__ = [
     "StructureLearner",
@@ -24,6 +26,7 @@ __all__ = [
     "HillClimbingAlgorithm",
     "IpaAlgorithm",
     "MMHCAlgorithm",
+    "NotearsAlgorithm",
     "register_algorithm",
     "get_algorithm",
     "list_algorithms",

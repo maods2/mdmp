@@ -22,10 +22,12 @@ flowchart TD
     C -->|hc| D[Hill-Climbing]
     C -->|tabu| E[Tabu Search]
     C -->|mmhc| F[Max-Min Hill-Climbing]
+    C -->|notears| Nt[NOTEARS]
     
     D --> G[Initialize Structure]
     E --> G
     F --> G
+    Nt --> G
     
     G --> H[Loop: Evaluate Candidate Structures]
     H --> I[For Each Node:<br/>Maximize LPL]
@@ -155,8 +157,21 @@ pip install .
 ### Optional Dependencies
 
 - **pgmpy** (>=0.1.25): Required for hill-climbing structure learning method
+- **notears**: Required for NOTEARS structure learning method (not on PyPI; install from GitHub, see below)
 - **pytest** (>=7.0.0): For running unit tests
 - **pytest-cov**: For test coverage reports (development only)
+
+#### Installing NOTEARS (from GitHub)
+
+The NOTEARS library is not available on PyPI. Install it from GitHub to use the `method="notears"` structure learning option:
+
+```bash
+# Install from official repository
+pip install git+https://github.com/xunzheng/notears.git
+
+# Or install from a local clone (e.g., if notears is in the same repo)
+pip install -e ../notears
+```
 
 ## Development Setup
 
@@ -425,6 +440,8 @@ Currently available methods:
 - **`"hc"`**: **Hill-climbing** (default, fast) - Uses pgmpy's `HillClimbSearch` with custom MDM scoring function. Optimizes the log predictive likelihood per node. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
 
 - **`"mmhc"`**: **Max-Min Hill-Climbing** - First learns an undirected skeleton via MMPC (Max-Min Parents and Children), then orients edges using hill-climbing with custom MDM score. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
+
+- **`"notears"`**: **NOTEARS** - Continuous optimization for structure learning (Zheng et al., NeurIPS 2018). Treats time series as i.i.d. samples. Does not use MDM scoring. Requires `notears` (install from GitHub: `pip install git+https://github.com/xunzheng/notears.git`).
 
 **Experimental/Under development:**
 - **`"tabu"`**: Tabu search - Mentioned in examples but may require additional setup. In the R package, `bnlearn::tabu` provides tabu search functionality. In Python, tabu search can potentially be achieved by passing `tabu_length` parameter to pgmpy's `HillClimbSearch` via `**kwargs` when using `method="hc"`.

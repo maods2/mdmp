@@ -385,6 +385,94 @@ class MMHCAlgorithm(BaseLearningAlgorithm):
         return adj
 
 
+class NotearsAlgorithm(BaseLearningAlgorithm):
+    """
+    NOTEARS (Non-combinatorial Optimization via Trace Exponential and
+    Augmented lagrangian for Structure learning) algorithm.
+
+    Uses continuous optimization to learn DAG structure from data.
+    NOTEARS assumes i.i.d. data; when given time series, each row is
+    treated as an independent sample. Does not use MDM scoring.
+
+    Reference: Zheng et al. (2018) "DAGs with NO TEARS"
+    Install: pip install -e ../notears from repo root.
+    """
+
+    def learn(
+        self,
+        data: np.ndarray,
+        nbf: int,
+        delta: np.ndarray,
+        node_names: Optional[List[str]],
+        **kwargs
+    ) -> np.ndarray:
+        """
+        Learn structure using NOTEARS linear model.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            Time series data (T x N). Treated as i.i.d. samples for NOTEARS.
+        nbf : int
+            Burn-in (ignored by NOTEARS, kept for API compatibility).
+        delta : np.ndarray
+            Discount factors (ignored by NOTEARS, kept for API compatibility).
+        node_names : list of str, optional
+            Node names (ignored, kept for API compatibility).
+        **kwargs
+            Passed to notears_linear:
+            - lambda1 : float, L1 penalty (default 0.1)
+            - loss_type : str, 'l2', 'logistic', or 'poisson' (default 'l2')
+            - w_threshold : float, edge weight threshold (default 0.3)
+            - max_iter : int, max dual ascent steps (default 100)
+            - h_tol : float, acyclicity tolerance (default 1e-8)
+
+        Returns
+        -------
+        np.ndarray
+            Adjacency matrix (N x N).
+        """
+        try:
+            from notears.linear import notears_linear
+        except ImportError as exc:
+            raise ImportError(
+                "notears is required for NOTEARS algorithm. "
+                "Install with `pip install -e ../notears` from repo root, "
+                "or `pip install mdmp[notears]`."
+            ) from exc
+
+        lambda1 = kwargs.pop("lambda1", 0.1)
+        loss_type = kwargs.pop("loss_type", "l2")
+        w_threshold = kwargs.pop("w_threshold", 0.3)
+        max_iter = kwargs.pop("max_iter", 100)
+        h_tol = kwargs.pop("h_tol", 1e-8)
+
+        # NOTEARS expects (n, d) - each row is a sample
+        X = np.asarray(data, dtype=np.float64)
+
+        if self.verbose:
+            print("Running NOTEARS linear (treating time series as i.i.d. samples)...")
+
+        W_est = notears_linear(
+            X,
+            lambda1=lambda1,
+            loss_type=loss_type,
+            max_iter=max_iter,
+            h_tol=h_tol,
+            w_threshold=w_threshold,
+        )
+
+        # W_est[j,i] != 0 means edge j -> i (j is parent of i)
+        # adj[i,j] = 1 means i is parent of j, so adj[j,i] = 1 when j->i
+        adj = (np.abs(W_est) > w_threshold).astype(int)
+
+        if self.verbose:
+            n_edges = int(adj.sum())
+            print(f"NOTEARS found {n_edges} edges.")
+
+        return adj
+
+
 class IpaAlgorithm(BaseLearningAlgorithm):
     """
     Integer Programming Approach (IPA) structure learning algorithm.

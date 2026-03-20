@@ -36,6 +36,7 @@ Homepage = "https://github.com/maods2/mdmp"
 Repository = "https://github.com/maods2/mdmp"
 
 [project.optional-dependencies]
+notears = []
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",

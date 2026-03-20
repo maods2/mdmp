@@ -50,13 +50,14 @@ class StructureLearner:
         data : np.ndarray
             Time series data (T x N).
         method : str, optional
-            Learning method. Options: "hc", "tabu", "ipa", "mmhc".
+            Learning method. Options: "hc", "tabu", "ipa", "mmhc", "notears".
             Default is "hc".
             
             - "hc": Hill-climbing using pgmpy (requires pgmpy)
             - "tabu": Tabu search
             - "ipa": Integer Programming Approach (not yet implemented)
             - "mmhc": Max-Min Hill-Climbing using pgmpy (requires pgmpy)
+            - "notears": NOTEARS linear (requires notears)
         nbf : int, optional
             Burn-in time point. Default is 15.
         delta : np.ndarray, optional
