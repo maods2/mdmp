@@ -10,7 +10,7 @@ from typing import List, Literal, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from ..validation import validate_multi_subject_data
+from ...validation import validate_multi_subject_data
 
 
 def prepare_multi_subject_data(
@@ -37,7 +37,7 @@ def prepare_multi_subject_data(
     Examples
     --------
     >>> import numpy as np
-    >>> from mdmp.vts.data import prepare_multi_subject_data
+    >>> from mdmp.group_analysis.vts.data import prepare_multi_subject_data
     >>> data = [np.random.randn(50, 3), np.random.randn(60, 3)]
     >>> arrays, meta = prepare_multi_subject_data(data)
     >>> len(arrays)

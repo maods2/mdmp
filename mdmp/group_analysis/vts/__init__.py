@@ -56,7 +56,7 @@ def compute_vts(
     Examples
     --------
     >>> import numpy as np
-    >>> from mdmp.vts import compute_vts
+    >>> from mdmp.group_analysis.vts import compute_vts
     >>> data = [np.random.randn(50, 3), np.random.randn(50, 3)]
     >>> result = compute_vts(data, method="mean")
     >>> result.vts_data.shape

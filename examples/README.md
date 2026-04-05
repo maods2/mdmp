@@ -70,7 +70,7 @@ python examples/04_advanced_usage.py
 ```
 
 ### 04_vts_usage.py
-**Virtual Typical Subject (VTS)**
+**Virtual Typical Subject (VTS)** — see `mdmp.group_analysis.vts`
 
 Demonstrates multi-subject aggregation for computing a representative subject:
 - Creating multi-subject data (list, 3D array, DataFrame)

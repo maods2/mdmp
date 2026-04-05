@@ -17,7 +17,12 @@ from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
 from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
 from .validation import validate_multi_subject_data
-from .vts import compute_vts, VTSResult
+from .group_analysis import (
+    ISAggregationResult,
+    VTSResult,
+    aggregate_individual_structures,
+    compute_vts,
+)
 
 # Aliases to match R package function names
 CDELT = select_discount_factors  # R: CDELT
@@ -52,9 +57,11 @@ __all__ = [
     "load_dataset",
     "list_datasets",
 
-    # VTS (Virtual Typical Subject)
+    # Group analysis (VTS + IS aggregation)
     "compute_vts",
     "VTSResult",
+    "aggregate_individual_structures",
+    "ISAggregationResult",
     "validate_multi_subject_data",
 ]
 

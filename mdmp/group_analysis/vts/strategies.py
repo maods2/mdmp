@@ -3,11 +3,11 @@ VTS computation strategies: concatenation-based and mean-based approaches.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 import numpy as np
 
-from .data import align_subjects, prepare_multi_subject_data
+from .data import align_subjects
 from .estimators import get_estimator
 from .types import VTSResult
 

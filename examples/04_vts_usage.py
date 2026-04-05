@@ -1,6 +1,8 @@
 """
 Virtual Typical Subject (VTS) Usage Example
 
+VTS is implemented under ``mdmp.group_analysis.vts`` (also re-exported from ``mdmp``).
+
 This example demonstrates:
 1. Creating multi-subject time series data
 2. Computing VTS via concatenation and mean-based approaches

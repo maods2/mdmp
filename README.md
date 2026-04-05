@@ -596,9 +596,11 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 4. **`plot_stream()`**: Plot parent contributions to a child node
 5. **`plot_idag()`**: Create animated heatmap of dynamic parameters
 
-### Virtual Typical Subject (VTS)
+### Group analysis (`mdmp.group_analysis`)
 
-For multi-subject multivariate time series, compute a representative subject:
+Group-level tools live under **`mdmp.group_analysis`**: **VTS** (Virtual Typical Subject — representative time series) and **IS** (Individual Structure — aggregate subject DAGs). The root package also re-exports the main entry points.
+
+**Virtual Typical Subject (VTS)** — multi-subject multivariate time series:
 
 ```python
 from mdmp import compute_vts, MDM
@@ -611,7 +613,16 @@ result = compute_vts(data, method="concatenation")  # Concatenate along time
 model = MDM(result.vts_data, method="hc")
 ```
 
-See `examples/04_vts_usage.py` and `notebooks/04_vts.ipynb` for full examples.
+**Individual Structure (IS) aggregation** — one global DAG from subject adjacency matrices:
+
+```python
+from mdmp import aggregate_individual_structures, plot_dag
+
+result = aggregate_individual_structures(list_of_adj_mats, tau=0.5)
+fig = plot_dag(result)  # result exposes adj_mat and node_names
+```
+
+See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/03-is-aggregation.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).
 
 ## API Reference
 

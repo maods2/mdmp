@@ -79,6 +79,8 @@ Then execute `07_vts_multi_individual_analysis.ipynb` to:
 - Compare learned structures with true DAG
 - Visualize final structures
 
+For a **direct comparison of VTS vs Individual Structure (IS) aggregation** on the same CSVs, run the package notebook `notebooks/04-is-vs-vts-multi-individual.ipynb` (expects `multi-individual/dag_*var_*` files as generated above).
+
 ### 5. Compare Results
 
 Execute the Python notebook `06_comparison_metrics.ipynb` to:
