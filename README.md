@@ -601,14 +601,11 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 For multi-subject multivariate time series, compute a representative subject:
 
 ```python
-from mdmp import compute_vts, compare_vts_methods, MDM
+from mdmp import compute_vts, MDM
 
 # Data: list of (T_s x N) arrays, 3D (I x k x N), or DataFrame with subject_id
 result = compute_vts(data, method="mean")      # Mean-based: avg per subject, then across
 result = compute_vts(data, method="concatenation")  # Concatenate along time
-
-# Compare methods
-comparison = compare_vts_methods(data, metrics=["mse", "correlation"])
 
 # Use VTS with MDM
 model = MDM(result.vts_data, method="hc")

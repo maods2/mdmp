@@ -16,6 +16,34 @@ from .scoring import MdmStructureScore
 from .utils import extract_adjacency_from_model
 
 
+def _preload_torch_for_pgmpy() -> None:
+    """
+    Import PyTorch before pgmpy when available.
+
+    pgmpy pulls in torch transitively; on some setups that nested import leaves
+    ``torch`` only partially initialized (e.g. ``torch.types`` / ``memory_format``
+    missing). Loading torch first avoids that ordering issue.
+    """
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        pass
+    except AttributeError as exc:
+        raise _pgmpy_import_error_hint(exc) from exc
+
+
+def _pgmpy_import_error_hint(exc: BaseException) -> ImportError:
+    msg = str(exc).lower()
+    if "torch" in msg and ("partially initialized" in msg or "has no attribute" in msg):
+        return ImportError(
+            "PyTorch failed to finish loading while importing pgmpy. Typical causes: "
+            "a local file named torch.py (or a folder torch/) shadowing the real "
+            "package on sys.path, or a broken PyTorch install. Restart the kernel, "
+            "run from a directory without such a file, and reinstall torch if needed."
+        )
+    return ImportError(f"Could not import pgmpy estimators: {exc}")
+
+
 class BaseLearningAlgorithm(ABC):
     """
     Base class for structure learning algorithms.
@@ -227,6 +255,7 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         This mirrors the R implementation using bnlearn::hc with a custom score
         function by optimizing the MDM log predictive likelihood per node.
         """
+        _preload_torch_for_pgmpy()
         try:
             from pgmpy.estimators import HillClimbSearch, StructureScore
         except ImportError as exc:
@@ -234,6 +263,8 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
                 "pgmpy is required for hill-climbing algorithm. "
                 "Install with `pip install pgmpy`."
             ) from exc
+        except AttributeError as exc:
+            raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
 
@@ -304,6 +335,7 @@ class TabuAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         np.ndarray
             Adjacency matrix (N x N).
         """
+        _preload_torch_for_pgmpy()
         try:
             from pgmpy.estimators import HillClimbSearch, StructureScore
         except ImportError as exc:
@@ -311,6 +343,8 @@ class TabuAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
                 "pgmpy is required for tabu search algorithm. "
                 "Install with `pip install pgmpy`."
             ) from exc
+        except AttributeError as exc:
+            raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
 
@@ -364,6 +398,7 @@ class MMHCAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         then orients edges using hill-climbing with the custom MDM scoring
         function that optimizes the log predictive likelihood per node.
         """
+        _preload_torch_for_pgmpy()
         try:
             from pgmpy.estimators import MmhcEstimator, StructureScore
         except ImportError as exc:
@@ -371,6 +406,8 @@ class MMHCAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
                 "pgmpy is required for MMHC algorithm. "
                 "Install with `pip install pgmpy`."
             ) from exc
+        except AttributeError as exc:
+            raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
 

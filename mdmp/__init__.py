@@ -17,14 +17,7 @@ from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
 from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
 from .validation import validate_multi_subject_data
-from .vts import (
-    compute_vts,
-    compare_vts_methods,
-    evaluate_vts_representation,
-    subject_vs_vts_metrics,
-    VTSResult,
-    ComparisonResult,
-)
+from .vts import compute_vts, VTSResult
 
 # Aliases to match R package function names
 CDELT = select_discount_factors  # R: CDELT
@@ -61,11 +54,7 @@ __all__ = [
 
     # VTS (Virtual Typical Subject)
     "compute_vts",
-    "compare_vts_methods",
-    "evaluate_vts_representation",
-    "subject_vs_vts_metrics",
     "VTSResult",
-    "ComparisonResult",
     "validate_multi_subject_data",
 ]
 

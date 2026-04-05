@@ -4,21 +4,13 @@ Virtual Typical Subject (VTS) Usage Example
 This example demonstrates:
 1. Creating multi-subject time series data
 2. Computing VTS via concatenation and mean-based approaches
-3. Comparing methods and evaluating representation quality
-4. Using VTS output with MDM for structure learning
+3. Using VTS output with MDM for structure learning
 """
 
 import numpy as np
 import pandas as pd
 
-from mdmp import (
-    MDM,
-    compute_vts,
-    compare_vts_methods,
-    evaluate_vts_representation,
-    subject_vs_vts_metrics,
-    load_dataset,
-)
+from mdmp import MDM, compute_vts, load_dataset
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -80,43 +72,10 @@ print(f"\nConcatenation-based VTS (return_series=False, summary):")
 print(f"  Shape: {result_concat_summary.vts_data.shape}")
 
 # ---------------------------------------------------------------------------
-# 3. Compare methods
+# 3. Use VTS with MDM
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print("3. Comparing VTS Methods")
-print("=" * 60)
-
-comparison = compare_vts_methods(
-    aligned_3d,
-    methods=["concatenation", "mean"],
-    metrics=["mse", "correlation"],
-)
-print("\nComparison table:")
-print(comparison.comparison_table.to_string(index=False))
-
-# ---------------------------------------------------------------------------
-# 4. Evaluate representation quality
-# ---------------------------------------------------------------------------
-print("\n" + "=" * 60)
-print("4. Evaluating VTS Representation")
-print("=" * 60)
-
-arrays = [aligned_3d[i] for i in range(3)]
-mse = evaluate_vts_representation(arrays, result_mean, metric="mse")
-corr = evaluate_vts_representation(arrays, result_mean, metric="correlation")
-print(f"\nMean-based VTS vs population:")
-print(f"  MSE (lower is better): {mse:.4f}")
-print(f"  Correlation (higher is better): {corr:.4f}")
-
-metrics = subject_vs_vts_metrics(arrays, result_mean, metric="mse")
-print(f"\nPer-subject MSE: {metrics['per_subject']}")
-print(f"  Mean: {metrics['mean']:.4f}, Std: {metrics['std']:.4f}")
-
-# ---------------------------------------------------------------------------
-# 5. Use VTS with MDM
-# ---------------------------------------------------------------------------
-print("\n" + "=" * 60)
-print("5. Fitting MDM on VTS")
+print("3. Fitting MDM on VTS")
 print("=" * 60)
 
 # Fit MDM on mean-based VTS (typical subject structure)
@@ -130,10 +89,10 @@ model_pooled = MDM(result_concat.vts_data, method="hc", verbose=False)
 print(f"  Learned structure: {np.sum(model_pooled.adj_mat)} edges")
 
 # ---------------------------------------------------------------------------
-# 6. DataFrame input (long format with subject_id)
+# 4. DataFrame input (long format with subject_id)
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print("6. DataFrame Input (long format)")
+print("4. DataFrame Input (long format)")
 print("=" * 60)
 
 # Build long-format DataFrame (subject_id + variable columns)

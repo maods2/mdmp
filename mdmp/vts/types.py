@@ -2,11 +2,10 @@
 Type definitions for Virtual Typical Subject (VTS) results.
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Dict
 
 import numpy as np
-import pandas as pd
 
 
 @dataclass
@@ -36,20 +35,3 @@ class VTSResult:
         """Ensure vts_data is numpy array."""
         if not isinstance(self.vts_data, np.ndarray):
             self.vts_data = np.asarray(self.vts_data)
-
-
-@dataclass
-class ComparisonResult:
-    """
-    Result of comparing multiple VTS methods.
-
-    Attributes
-    ----------
-    results : dict
-        Mapping of method name to VTSResult.
-    comparison_table : pd.DataFrame, optional
-        Summary table with metrics per method (e.g., MSE).
-    """
-
-    results: Dict[str, VTSResult]
-    comparison_table: Optional[pd.DataFrame] = field(default=None)

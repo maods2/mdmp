@@ -11,14 +11,9 @@ import numpy as np
 import pandas as pd
 
 from .data import align_subjects, prepare_multi_subject_data
-from .evaluation import (
-    compare_vts_methods,
-    evaluate_vts_representation,
-    subject_vs_vts_metrics,
-)
 from .estimators import get_estimator, global_mean, global_median, list_estimators
 from .strategies import ConcatenationStrategy, MeanBasedStrategy
-from .types import ComparisonResult, VTSResult
+from .types import VTSResult
 
 
 def compute_vts(
@@ -86,13 +81,9 @@ def compute_vts(
 
 __all__ = [
     "compute_vts",
-    "compare_vts_methods",
-    "evaluate_vts_representation",
-    "subject_vs_vts_metrics",
     "prepare_multi_subject_data",
     "align_subjects",
     "VTSResult",
-    "ComparisonResult",
     "ConcatenationStrategy",
     "MeanBasedStrategy",
     "get_estimator",

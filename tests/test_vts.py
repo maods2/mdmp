@@ -6,16 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mdmp import (
-    MDM,
-    compute_vts,
-    compare_vts_methods,
-    evaluate_vts_representation,
-    subject_vs_vts_metrics,
-    validate_multi_subject_data,
-    VTSResult,
-    ComparisonResult,
-)
+from mdmp import MDM, compute_vts, validate_multi_subject_data, VTSResult
 from mdmp.vts import align_subjects, prepare_multi_subject_data
 
 
@@ -142,51 +133,6 @@ class TestComputeVTS:
     def test_invalid_method_raises(self, aligned_multi_subject):
         with pytest.raises(ValueError, match="method must be"):
             compute_vts(aligned_multi_subject, method="invalid")
-
-
-class TestCompareVTSMethods:
-    """Tests for compare_vts_methods."""
-
-    def test_returns_comparison_result(self, aligned_multi_subject):
-        comp = compare_vts_methods(aligned_multi_subject)
-        assert isinstance(comp, ComparisonResult)
-        assert "concatenation" in comp.results
-        assert "mean" in comp.results
-        assert comp.comparison_table is not None
-        assert "mse" in comp.comparison_table.columns
-
-
-class TestEvaluateVTSRepresentation:
-    """Tests for evaluate_vts_representation."""
-
-    def test_mse_metric(self, aligned_multi_subject):
-        result = compute_vts(aligned_multi_subject, method="mean")
-        arrays = [aligned_multi_subject[i] for i in range(3)]
-        mse = evaluate_vts_representation(arrays, result, metric="mse")
-        assert isinstance(mse, float)
-        assert mse >= 0
-
-    def test_correlation_metric(self, aligned_multi_subject):
-        result = compute_vts(aligned_multi_subject, method="mean")
-        arrays = [aligned_multi_subject[i] for i in range(3)]
-        corr = evaluate_vts_representation(
-            arrays, result, metric="correlation"
-        )
-        assert isinstance(corr, float)
-        assert -1 <= corr <= 1
-
-
-class TestSubjectVsVTSMetrics:
-    """Tests for subject_vs_vts_metrics."""
-
-    def test_returns_dict_with_expected_keys(self, aligned_multi_subject):
-        result = compute_vts(aligned_multi_subject, method="mean")
-        arrays = [aligned_multi_subject[i] for i in range(3)]
-        metrics = subject_vs_vts_metrics(arrays, result, metric="mse")
-        assert "per_subject" in metrics
-        assert "mean" in metrics
-        assert "std" in metrics
-        assert len(metrics["per_subject"]) == 3
 
 
 class TestVTSWithMDM:
