@@ -7,6 +7,8 @@ and estimating time-varying dynamic parameters using Kalman filtering and smooth
 This package is a Python port of the R package 'mdmr'.
 """
 
+from ._version import __version__
+
 from .datasets import (
     list_datasets,
     load_dataset,
@@ -29,7 +31,6 @@ CDELT = select_discount_factors  # R: CDELT
 dlm_filt = dlm_filter            # R: dlm_filt
 dlm_smoo = dlm_smooth            # R: dlm_smoo
 
-__version__ = "0.6.2"
 __all__ = [
     # Main class
     "MDM",

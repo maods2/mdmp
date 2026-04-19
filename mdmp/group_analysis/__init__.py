@@ -5,7 +5,7 @@ Subpackages
 -----------
 vts
     Virtual Typical Subject (VTS): build a representative time series across
-    subjects (concatenation or mean-based).
+    subjects (concatenation, mean-based, or median-based).
 is
     Individual Structure (IS) aggregation: combine subject-specific DAGs into
     one global DAG via edge-frequency thresholding and acyclic repair.
@@ -26,6 +26,7 @@ from .vts import (
     prepare_multi_subject_data,
     ConcatenationStrategy,
     MeanBasedStrategy,
+    MedianBasedStrategy,
 )
 
 _is = importlib.import_module("mdmp.group_analysis.is")
@@ -39,6 +40,7 @@ __all__ = [
     "VTSResult",
     "ConcatenationStrategy",
     "MeanBasedStrategy",
+    "MedianBasedStrategy",
     "get_estimator",
     "global_mean",
     "global_median",

@@ -1,5 +1,5 @@
 """
-VTS computation strategies: concatenation-based and mean-based approaches.
+VTS computation strategies: concatenation-based, mean-based, and median-based approaches.
 """
 
 from abc import ABC, abstractmethod
@@ -130,6 +130,48 @@ class MeanBasedStrategy(BaseVTSStrategy):
         return VTSResult(
             vts_data=vts_data,
             method="mean",
+            n_subjects=metadata["n_subjects"],
+            metadata={
+                **metadata,
+                "align_method": self.align_method,
+            },
+        )
+
+
+class MedianBasedStrategy(BaseVTSStrategy):
+    """
+    Median-based VTS: align subjects, then pointwise median across subjects.
+
+    Requires aligned time lengths. Uses align_subjects when lengths differ.
+    """
+
+    def __init__(
+        self,
+        align_method: Literal["truncate", "pad", "interpolate"] = "truncate",
+    ):
+        """
+        Initialize median-based strategy.
+
+        Parameters
+        ----------
+        align_method : {"truncate", "pad", "interpolate"}, optional
+            How to align subjects with different T. Default "truncate".
+        """
+        self.align_method = align_method
+
+    def compute(
+        self,
+        data: List[np.ndarray],
+        metadata: dict,
+        **kwargs,
+    ) -> VTSResult:
+        """Compute VTS via aligned stack, then median across subjects."""
+        aligned = align_subjects(data, method=self.align_method)
+        stacked = [arr for arr in aligned]
+        vts_data = np.median(stacked, axis=0)
+        return VTSResult(
+            vts_data=vts_data,
+            method="median",
             n_subjects=metadata["n_subjects"],
             metadata={
                 **metadata,

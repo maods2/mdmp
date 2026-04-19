@@ -2,7 +2,8 @@
 Virtual Typical Subject (VTS) module.
 
 Provides methods for computing a representative subject from multi-subject
-multivariate time series via concatenation-based or mean-based approaches.
+multivariate time series via concatenation-based, mean-based, or median-based
+approaches.
 """
 
 from typing import Literal, Union
@@ -12,13 +13,13 @@ import pandas as pd
 
 from .data import align_subjects, prepare_multi_subject_data
 from .estimators import get_estimator, global_mean, global_median, list_estimators
-from .strategies import ConcatenationStrategy, MeanBasedStrategy
+from .strategies import ConcatenationStrategy, MeanBasedStrategy, MedianBasedStrategy
 from .types import VTSResult
 
 
 def compute_vts(
     data: Union[list, np.ndarray, pd.DataFrame],
-    method: Literal["concatenation", "mean"] = "mean",
+    method: Literal["concatenation", "mean", "median"] = "mean",
     estimator: str = "mean",
     return_series: bool = True,
     align_method: Literal["truncate", "pad", "interpolate"] = "truncate",
@@ -34,7 +35,7 @@ def compute_vts(
         - List of (T_s x N) arrays
         - 3D array (S x T x N)
         - DataFrame with subject_id column (long format)
-    method : {"concatenation", "mean"}, optional
+    method : {"concatenation", "mean", "median"}, optional
         VTS computation method. Default "mean".
     estimator : str, optional
         For concatenation when return_series=False: "mean" or "median".
@@ -44,7 +45,7 @@ def compute_vts(
         If False, apply estimator over time to get (N,) summary.
         Default True.
     align_method : {"truncate", "pad", "interpolate"}, optional
-        For mean method when subjects have different T. Default "truncate".
+        For mean or median method when subjects have different T. Default "truncate".
     **kwargs
         Additional options (reserved for future use).
 
@@ -71,9 +72,11 @@ def compute_vts(
         )
     elif method == "mean":
         strategy = MeanBasedStrategy(align_method=align_method)
+    elif method == "median":
+        strategy = MedianBasedStrategy(align_method=align_method)
     else:
         raise ValueError(
-            f"method must be 'concatenation' or 'mean', got {method!r}"
+            f"method must be 'concatenation', 'mean', or 'median', got {method!r}"
         )
 
     return strategy.compute(arrays, metadata, **kwargs)
@@ -86,6 +89,7 @@ __all__ = [
     "VTSResult",
     "ConcatenationStrategy",
     "MeanBasedStrategy",
+    "MedianBasedStrategy",
     "get_estimator",
     "global_mean",
     "global_median",

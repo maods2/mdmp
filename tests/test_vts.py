@@ -117,6 +117,20 @@ class TestComputeVTS:
         assert result.n_subjects == 3
         assert result.vts_data.shape == (50, 4)
 
+    def test_median_method(self, aligned_multi_subject):
+        result = compute_vts(aligned_multi_subject, method="median")
+        assert isinstance(result, VTSResult)
+        assert result.method == "median"
+        assert result.n_subjects == 3
+        assert result.vts_data.shape == (50, 4)
+
+    def test_median_matches_mean_for_two_subjects(self):
+        np.random.seed(0)
+        two = np.random.randn(2, 50, 4)
+        median_res = compute_vts(two, method="median")
+        mean_res = compute_vts(two, method="mean")
+        assert np.allclose(median_res.vts_data, mean_res.vts_data)
+
     def test_concatenation_method(self, aligned_multi_subject):
         result = compute_vts(aligned_multi_subject, method="concatenation")
         assert result.method == "concatenation"
@@ -146,6 +160,12 @@ class TestVTSWithMDM:
 
     def test_concatenation_vts_fits_mdm(self, aligned_multi_subject):
         vts_result = compute_vts(aligned_multi_subject, method="concatenation")
+        model = MDM(vts_result.vts_data, method="hc", verbose=False)
+        assert model.adj_mat is not None
+        assert model.data.shape == vts_result.vts_data.shape
+
+    def test_median_vts_fits_mdm(self, aligned_multi_subject):
+        vts_result = compute_vts(aligned_multi_subject, method="median")
         model = MDM(vts_result.vts_data, method="hc", verbose=False)
         assert model.adj_mat is not None
         assert model.data.shape == vts_result.vts_data.shape

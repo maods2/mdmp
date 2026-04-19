@@ -42,14 +42,14 @@ def plot_arcs(
         Figure object.
     """
     if distribution == "filt":
-        mt_list = mdm_object.Filt['mt']
-        Ct_list = mdm_object.Filt['Ct']
-        nt_list = mdm_object.Filt['nt']
+        mt_list = mdm_object.Filt['mt'] # Posterior means
+        Ct_list = mdm_object.Filt['Ct'] # Posterior variances
+        nt_list = mdm_object.Filt['nt'] # Precision hyperparameters
         use_se = False
     else:
-        mt_list = mdm_object.Smoo['smt']
-        Ct_list = mdm_object.Smoo['sCt']
-        SE_list = mdm_object.Smoo['SE']
+        mt_list = mdm_object.Smoo['smt'] # Smoothed means
+        Ct_list = mdm_object.Smoo['sCt'] # Smoothed variances
+        SE_list = mdm_object.Smoo['SE'] # Standard errors
         use_se = True
 
     if figsize is None:

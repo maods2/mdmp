@@ -695,6 +695,45 @@ For the original R package, please cite:
 }
 ```
 
+## Versioning and releases
+
+The installed package version is exposed as `mdmp.__version__` (defined in
+[`mdmp/_version.py`](mdmp/_version.py); `pyproject.toml` reads it via setuptools
+dynamic metadata). Human-facing copies in the README (git tag install line and
+the **mdmp** BibTeX block) are kept in sync by **bump-my-version**.
+
+### Changelog
+
+Release notes live in [`CHANGELOG.md`](CHANGELOG.md). During development, add
+bullet points under `## [Unreleased]` using the existing subsections (Added,
+Changed, Fixed, etc.). When you cut a release, rename that section to
+`## [x.y.z] - YYYY-MM-DD` and update the compare links at the bottom of the file.
+
+### Bumping the version
+
+With dev dependencies installed (`uv sync` or `pip install -e ".[dev]"`):
+
+```bash
+# preview
+uvx bump-my-version bump patch --dry-run --verbose --allow-dirty
+
+# apply (use minor / major instead of patch when appropriate)
+uvx bump-my-version bump patch --allow-dirty
+```
+
+This updates `mdmp/_version.py`, `[tool.bumpversion].current_version` in
+`pyproject.toml`, and the README patterns configured under `[tool.bumpversion]`.
+If you use a lockfile for local development, run `uv lock` afterward so `uv.lock`
+stays consistent.
+
+### Release checklist
+
+1. Merge work to `main` and ensure `CHANGELOG.md` describes the release (move
+   items from `[Unreleased]` into a dated `## [x.y.z]` section).
+2. Run `bump-my-version bump` as above, then `uv lock` if applicable.
+3. Commit, create an annotated tag `vx.y.z`, and push the tag. Publish to PyPI
+   using your usual workflow.
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
