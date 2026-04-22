@@ -2,7 +2,7 @@
 DAG visualization functions for MDM models.
 """
 
-from typing import TYPE_CHECKING, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, List, Literal, Optional
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def plot_dag(
-    mdm_object: "MDM",
+    mdm_object: Any,
     node_labels: Optional[List[str]] = None,
     plot_type: Literal["graph", "heatmap"] = "graph",
     show_legend: bool = False,
@@ -29,8 +29,10 @@ def plot_dag(
 
     Parameters
     ----------
-    mdm_object : MDM
-        MDM model object.
+    mdm_object
+        Typically :class:`mdmp.model.MDM`, or :class:`mdmp.group_analysis.is.aggregation.ISAggregatedMDMView`
+        / the return value of :func:`mdmp.group_analysis.aggregate_individual_structures`
+        (needs ``adj_mat`` and optionally ``node_names``).
     node_labels : list of str, optional
         Custom node labels. If None, uses MDM node names.
     plot_type : {"graph", "heatmap"}, optional
@@ -100,7 +102,7 @@ def plot_dag(
         edges = []
         for i in range(n):
             for j in range(n):
-                if adj_mat[i, j] == 1:
+                if adj_mat[i, j] != 0:
                     G.add_edge(i, j)
                     edges.append((i, j))
 

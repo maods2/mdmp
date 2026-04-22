@@ -617,13 +617,31 @@ model = MDM(result.vts_data, method="hc")
 **Individual Structure (IS) aggregation** — one global DAG from subject adjacency matrices:
 
 ```python
-from mdmp import aggregate_individual_structures, plot_dag
+from mdmp import aggregate_individual_structures, plot_arcs, plot_dag
 
 result = aggregate_individual_structures(list_of_adj_mats, tau=0.5)
-fig = plot_dag(result)  # result exposes adj_mat and node_names
+fig = plot_dag(result)  # ISAggregatedMDMView: adj_mat, node_names
+
+# Optional: pass fitted MDM instances — adjacency, Filt, and mean plot_data are taken from each model
+result = aggregate_individual_structures(
+    list_of_mdm_models,
+    tau=0.5,
+    pool_filt_for_plotting=True,
+)
+fig2 = plot_arcs(result, plot_type="connections")
+
+# Or keep the low-level adjacency + Filt lists if you do not have MDM objects
+result = aggregate_individual_structures(
+    list_of_adj_mats,
+    tau=0.5,
+    node_names=names,
+    filtered_per_subject=list_of_filt_dicts,
+    pool_filt_for_plotting=True,
+    plot_data=time_series_T_by_N,
+)
 ```
 
-See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/03-is-aggregation.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).
+See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/05-is-aggregation.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).
 
 ## API Reference
 

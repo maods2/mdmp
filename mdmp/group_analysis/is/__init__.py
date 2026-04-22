@@ -11,6 +11,18 @@ or::
     is_mod = importlib.import_module("mdmp.group_analysis.is")
 """
 
-from .aggregation import ISAggregationResult, aggregate_individual_structures
+from .aggregation import (
+    GlobalBetaMCResult,
+    ISAggregatedMDMView,
+    ISAggregationResult,
+    aggregate_individual_structures,
+    build_plot_filt_from_subjects,
+)
 
-__all__ = ["ISAggregationResult", "aggregate_individual_structures"]
+__all__ = [
+    "GlobalBetaMCResult",
+    "ISAggregatedMDMView",
+    "ISAggregationResult",
+    "aggregate_individual_structures",
+    "build_plot_filt_from_subjects",
+]

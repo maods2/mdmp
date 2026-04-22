@@ -1,11 +1,21 @@
 """Tests for Individual Structure (IS) aggregation."""
 
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
-import networkx as nx
 
-from mdmp.group_analysis import ISAggregationResult, aggregate_individual_structures
+from mdmp.group_analysis import (
+    ISAggregatedMDMView,
+    ISAggregationResult,
+    aggregate_individual_structures,
+)
+from mdmp.plotting import plot_dag
 
 
 def _is_dag(adj: np.ndarray) -> bool:
@@ -113,4 +123,28 @@ def test_non_binary_raises():
 def test_result_type():
     a = np.zeros((2, 2), dtype=int)
     r = aggregate_individual_structures([a], tau=0.5)
+    assert isinstance(r, ISAggregatedMDMView)
     assert isinstance(r, ISAggregationResult)
+    assert r.global_beta_mc is None
+
+
+def test_plot_data_shape_validates():
+    with pytest.raises(ValueError, match="plot_data"):
+        aggregate_individual_structures(
+            [np.zeros((2, 2), dtype=int)],
+            tau=0.5,
+            plot_data=np.zeros((5, 3)),
+        )
+
+
+def test_plot_dag_accepts_is_aggregated_view():
+    dag = np.zeros((3, 3), dtype=int)
+    dag[0, 1] = 1
+    dag[1, 2] = 1
+    mats = [dag.copy() for _ in range(2)]
+    r = aggregate_individual_structures(mats, tau=0.5, node_names=["a", "b", "c"])
+    fig = plot_dag(r, plot_type="graph")
+    assert fig is not None
+    plt.close(fig)
+    fig2 = plot_dag(r, plot_type="heatmap")
+    plt.close(fig2)

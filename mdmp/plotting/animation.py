@@ -2,18 +2,20 @@
 Animation plotting functions for MDM models.
 """
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
+
+from ._input_checks import require_data_for_plot, require_filt_for_plot, require_smoo_for_plot
 
 if TYPE_CHECKING:
     from ..model import MDM
 
 
 def plot_idag(
-    mdm_object: "MDM",
+    mdm_object: Any,
     output_gif: str = "mdm_dynamic.gif",
     fps: int = 10,
     width: int = 6,
@@ -26,8 +28,8 @@ def plot_idag(
 
     Parameters
     ----------
-    mdm_object : MDM
-        MDM model object.
+    mdm_object
+        :class:`mdmp.model.MDM` or an IS aggregation view with ``data`` and ``Filt``/``Smoo``.
     output_gif : str, optional
         Output GIF filename. Default is "mdm_dynamic.gif".
     fps : int, optional
@@ -46,9 +48,12 @@ def plot_idag(
     matplotlib.animation.FuncAnimation
         Animation object.
     """
+    require_data_for_plot(mdm_object, plot_kw="plot_data=...")
     if distribution == "filt":
+        require_filt_for_plot(mdm_object, plot_kw="plot_filt=...")
         mt_list = mdm_object.Filt['mt']
     else:
+        require_smoo_for_plot(mdm_object)
         mt_list = mdm_object.Smoo['smt']
 
     # Get number of time points

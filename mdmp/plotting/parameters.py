@@ -2,19 +2,25 @@
 Parameter plotting functions for MDM models.
 """
 
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from scipy import stats
 
+from ._input_checks import (
+    require_data_for_plot,
+    require_filt_for_plot,
+    require_smoo_for_plot,
+)
+
 if TYPE_CHECKING:
     from ..model import MDM
 
 
 def plot_arcs(
-    mdm_object: "MDM",
+    mdm_object: Any,
     plot_type: Literal["connections", "intercepts", "all"] = "connections",
     distribution: Literal["filt", "smoo"] = "filt",
     ci_level: float = 0.95,
@@ -25,8 +31,8 @@ def plot_arcs(
 
     Parameters
     ----------
-    mdm_object : MDM
-        MDM model object.
+    mdm_object
+        :class:`mdmp.model.MDM` or an IS aggregation view with ``Filt`` / ``Smoo``.
     plot_type : {"connections", "intercepts", "all"}, optional
         Which parameters to plot. Default is "connections".
     distribution : {"filt", "smoo"}, optional
@@ -42,11 +48,13 @@ def plot_arcs(
         Figure object.
     """
     if distribution == "filt":
+        require_filt_for_plot(mdm_object, plot_kw="plot_filt=...")
         mt_list = mdm_object.Filt['mt'] # Posterior means
         Ct_list = mdm_object.Filt['Ct'] # Posterior variances
         nt_list = mdm_object.Filt['nt'] # Precision hyperparameters
         use_se = False
     else:
+        require_smoo_for_plot(mdm_object)
         mt_list = mdm_object.Smoo['smt'] # Smoothed means
         Ct_list = mdm_object.Smoo['sCt'] # Smoothed variances
         SE_list = mdm_object.Smoo['SE'] # Standard errors
@@ -70,8 +78,10 @@ def plot_arcs(
             Ct_node = Ct_node.reshape(1, 1, -1)
 
         # Get parameter names
-        if 'row_names' in mdm_object.Filt and node in mdm_object.Filt['row_names']:
-            param_names = mdm_object.Filt['row_names'][node]
+        name_src = mdm_object.Filt if distribution == "filt" else mdm_object.Smoo
+        row_names = name_src.get("row_names") or {}
+        if node in row_names:
+            param_names = row_names[node]
         else:
             param_names = [f"beta0_{mdm_object.node_names[node] if hasattr(mdm_object, 'node_names') else node}"]
 
@@ -138,7 +148,7 @@ def plot_arcs(
 
 
 def plot_marginal(
-    mdm_object: "MDM",
+    mdm_object: Any,
     target_node: int,
     distribution: Literal["filt", "smoo"] = "filt",
     scale_series: bool = False,
@@ -149,8 +159,8 @@ def plot_marginal(
 
     Parameters
     ----------
-    mdm_object : MDM
-        MDM model object.
+    mdm_object
+        :class:`mdmp.model.MDM` or an IS aggregation view with ``data`` and ``Filt``/``Smoo``.
     target_node : int
         Index of target node.
     distribution : {"filt", "smoo"}, optional
@@ -167,6 +177,12 @@ def plot_marginal(
     """
     if figsize is None:
         figsize = (10, 6)
+
+    require_data_for_plot(mdm_object, plot_kw="plot_data=...")
+    if distribution == "filt":
+        require_filt_for_plot(mdm_object, plot_kw="plot_filt=...")
+    else:
+        require_smoo_for_plot(mdm_object)
 
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -208,7 +224,7 @@ def plot_marginal(
 
 
 def plot_stream(
-    mdm_object: "MDM",
+    mdm_object: Any,
     child_node: int,
     distribution: Literal["filt", "smoo"] = "filt",
     figsize: Optional[tuple] = None
@@ -218,8 +234,8 @@ def plot_stream(
 
     Parameters
     ----------
-    mdm_object : MDM
-        MDM model object.
+    mdm_object
+        :class:`mdmp.model.MDM` or an IS aggregation view with ``Filt`` / ``Smoo``.
     child_node : int
         Index of child node.
     distribution : {"filt", "smoo"}, optional
@@ -234,6 +250,11 @@ def plot_stream(
     """
     if figsize is None:
         figsize = (12, 6)
+
+    if distribution == "filt":
+        require_filt_for_plot(mdm_object, plot_kw="plot_filt=...")
+    else:
+        require_smoo_for_plot(mdm_object)
 
     fig, ax = plt.subplots(figsize=figsize)
 

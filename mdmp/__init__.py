@@ -20,9 +20,11 @@ from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
 from .validation import validate_multi_subject_data
 from .group_analysis import (
+    ISAggregatedMDMView,
     ISAggregationResult,
     VTSResult,
     aggregate_individual_structures,
+    build_plot_filt_from_subjects,
     compute_vts,
 )
 
@@ -63,6 +65,8 @@ __all__ = [
     "VTSResult",
     "aggregate_individual_structures",
     "ISAggregationResult",
+    "ISAggregatedMDMView",
+    "build_plot_filt_from_subjects",
     "validate_multi_subject_data",
 ]
 
