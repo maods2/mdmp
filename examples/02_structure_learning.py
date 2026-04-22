@@ -9,7 +9,8 @@ This example demonstrates:
 
 import numpy as np
 import pandas as pd
-from mdmp import MDM, list_datasets, load_dataset
+
+from mdmp import MDM, load_dataset
 
 # Set random seed for reproducibility
 np.random.seed(42)

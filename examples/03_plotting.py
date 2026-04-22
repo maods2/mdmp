@@ -11,12 +11,16 @@ This example demonstrates all plotting functions available in MDMP:
 Note: Some plots require matplotlib display backend. Adjust as needed.
 """
 
+import os
+
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+
 matplotlib.use('Agg')  # Use non-interactive backend for saving files
 import matplotlib.pyplot as plt
-from mdmp import MDM, plot_dag, plot_arcs, plot_marginal, plot_stream
+
+from mdmp import MDM, plot_arcs, plot_dag, plot_marginal, plot_stream
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -34,7 +38,6 @@ print("\nFitting MDM model...")
 model = MDM(data_df, method="hc", nbf=15, verbose=False)
 
 # Create output directory for plots
-import os
 output_dir = "plot_examples"
 os.makedirs(output_dir, exist_ok=True)
 

@@ -136,3 +136,19 @@ def test_select_discount_factors_nan_handling():
     # Should still return valid discount factors
     assert np.all(np.isfinite(result['DF_hat']))
     assert len(result['DF_hat']) == N
+
+
+def test_select_discount_factors_with_n_jobs(sample_data, small_dag_adjacency, default_delta):
+    """Test select_discount_factors with n_jobs parameter."""
+    # Test with n_jobs=None (should work same as default)
+    result = select_discount_factors(
+        sample_data,
+        small_dag_adjacency,
+        nbf=DEFAULT_NBF,
+        delta=default_delta,
+        n_jobs=None
+    )
+
+    assert 'lpldet' in result
+    assert 'DF_hat' in result
+    assert np.all(np.isfinite(result['DF_hat']))

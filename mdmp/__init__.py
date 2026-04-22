@@ -7,14 +7,23 @@ and estimating time-varying dynamic parameters using Kalman filtering and smooth
 This package is a Python port of the R package 'mdmr'.
 """
 
+from ._version import __version__
+
+from .datasets import (
+    list_datasets,
+    load_dataset,
+)
 from .dlm import dlm_filter, dlm_smooth
-from .mdm import MDM
+from .model import MDM
 from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
 from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
-from .datasets import (
-    load_dataset,
-    list_datasets,
+from .validation import validate_multi_subject_data
+from .group_analysis import (
+    ISAggregationResult,
+    VTSResult,
+    aggregate_individual_structures,
+    compute_vts,
 )
 
 # Aliases to match R package function names
@@ -22,7 +31,6 @@ CDELT = select_discount_factors  # R: CDELT
 dlm_filt = dlm_filter            # R: dlm_filt
 dlm_smoo = dlm_smooth            # R: dlm_smoo
 
-__version__ = "0.6.2"
 __all__ = [
     # Main class
     "MDM",
@@ -49,5 +57,12 @@ __all__ = [
     # Dataset loading functions
     "load_dataset",
     "list_datasets",
+
+    # Group analysis (VTS + IS aggregation)
+    "compute_vts",
+    "VTSResult",
+    "aggregate_individual_structures",
+    "ISAggregationResult",
+    "validate_multi_subject_data",
 ]
 

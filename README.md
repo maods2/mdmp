@@ -6,10 +6,14 @@ This package is a Python port of the R package **mdmr** developed by [Lilia Cost
 
 ## Features
 
-- **Structure Learning**: Learn Bayesian network structures from multivariate time series using various algorithms (hill-climbing, tabu search, etc.)
+- **Structure Learning**: Learn Bayesian network structures from multivariate time series using various algorithms (hill-climbing, tabu search, Max-Min Hill-Climbing)
 - **Dynamic Parameter Estimation**: Estimate time-varying parameters using Kalman filtering and smoothing
 - **Discount Factor Selection**: Automatically select optimal discount factors for each node
+- **Parallel Processing**: Support for multiprocessing to speed up computation on multi-core systems
+- **Progress Tracking**: Visual progress bars for long-running operations (when `verbose=True`)
+- **Performance Logging**: Automatic timing and logging of total processing time
 - **Visualization**: Comprehensive plotting tools for DAG structures, dynamic parameters, marginal posteriors, and animated heatmaps
+- **Virtual Typical Subject (VTS)**: Compute a representative subject from multi-subject time series via concatenation-based or mean-based aggregation; compare methods and integrate with MDM
 
 ## MDM Algorithm Flow
 
@@ -155,8 +159,21 @@ pip install .
 ### Optional Dependencies
 
 - **pgmpy** (>=0.1.25): Required for hill-climbing structure learning method
+- **notears**: Required for NOTEARS structure learning method (not on PyPI; install from GitHub, see below)
 - **pytest** (>=7.0.0): For running unit tests
 - **pytest-cov**: For test coverage reports (development only)
+
+#### Installing NOTEARS (from GitHub)
+
+The NOTEARS library is not available on PyPI. Install it from GitHub to use the `method="notears"` structure learning option:
+
+```bash
+# Install from official repository
+pip install git+https://github.com/xunzheng/notears.git
+
+# Or install from a local clone (e.g., if notears is in the same repo)
+pip install -e ../notears
+```
 
 ## Development Setup
 
@@ -242,6 +259,119 @@ The test suite includes:
 - **test_scoring.py**: Tests for scoring functions and discount factor selection
 - **test_structure.py**: Tests for structure learning algorithms
 - **test_utils.py**: Tests for utility functions
+- **test_parallel.py**: Tests for parallel processing functionality
+- **test_progress.py**: Tests for progress bar functionality
+- **test_plotting.py**: Tests for plotting functions
+
+### Code Quality and Linting
+
+The project uses **Ruff** for fast Python linting and code quality checks. Ruff is configured in `pyproject.toml` and checks for:
+
+- **E, W**: pycodestyle errors and warnings
+- **F**: Pyflakes (unused imports, undefined names, etc.)
+- **I**: Import sorting (isort)
+- **B**: flake8-bugbear (common bugs and design problems)
+- **C4**: flake8-comprehensions (better list/dict comprehensions)
+- **UP**: pyupgrade (modernize Python syntax)
+
+#### Basic Ruff Commands
+
+```bash
+# Activate virtual environment first
+source .venv/bin/activate  # Linux/Mac
+# or
+.venv-win\Scripts\activate  # Windows
+
+# Check for linting issues (read-only)
+ruff check .
+
+# Check and automatically fix issues
+ruff check --fix .
+
+# Check specific directories
+ruff check mdmp/
+ruff check tests/
+
+# Check only import-related issues
+ruff check . --select I
+
+# Check only style issues
+ruff check . --select E,W
+
+# Show statistics
+ruff check . --statistics
+```
+
+#### Ruff Configuration
+
+The Ruff configuration is in `pyproject.toml`:
+
+```toml
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501", "B008"]
+```
+
+**Key settings:**
+- `line-length = 100`: Matches Black formatter line length
+- `target-version = "py38"`: Ensures Python 3.8+ compatibility
+- `E501` is ignored: Line length is handled by Black
+- `B008` is ignored: Function calls in argument defaults are sometimes necessary
+
+#### Formatting
+
+The project uses **Black** for code formatting. Ruff can also format code, but Black is the primary formatter:
+
+```bash
+# Format code with Black
+black mdmp/ tests/
+
+# Check formatting without changing files
+black --check mdmp/ tests/
+```
+
+#### Pre-commit Hooks (Optional)
+
+If you have pre-commit configured, Ruff can run automatically:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run manually
+pre-commit run --all-files
+```
+
+#### Common Ruff Workflow
+
+1. **Before committing:**
+   ```bash
+   # Check for issues
+   ruff check .
+   
+   # Auto-fix what can be fixed
+   ruff check --fix .
+   
+   # Format code
+   black mdmp/ tests/
+   ```
+
+2. **For specific issues:**
+   ```bash
+   # Fix only import sorting
+   ruff check --fix . --select I
+   
+   # Check specific file
+   ruff check mdmp/mdm.py
+   ```
+
+3. **In CI/CD:**
+   ```bash
+   # Fail if there are issues
+   ruff check . --output-format=github
+   ```
 - **test_plotting.py**: Tests for plotting functions
 
 All tests should pass before submitting pull requests.
@@ -265,8 +395,13 @@ print(data.head())
 ### 2. Fit the MDM model
 
 ```python
-model = MDM(data_input=data, method="hc")
-# Running hill-climbing with custom MDM score...
+model = MDM(data, method="hc", verbose=True, n_jobs=-1)
+# Learning structure using method: hc
+# Selecting discount factors...
+# Computing filtered estimates...
+# Computing smoothed estimates...
+# 
+# MDM processing completed in 6.47 seconds
 ```
 
 - `model` is an object of class `MDM` containing:
@@ -401,20 +536,31 @@ The main `MDM` class coordinates structure learning, discount factor selection, 
 ```python
 model = MDM(
     data,              # Time series data (pd.DataFrame or np.ndarray)
-    method="hc",        # Structure learning method: "hc", "tabu", "mmhc", etc.
+    method="hc",       # Structure learning method: "hc", "tabu", "mmhc"
     nbf=15,            # Burn-in time point
     delta=None,        # Discount factor sequence (auto if None)
-    verbose=True       # Print progress
+    verbose=True,      # Print progress and show progress bars
+    n_jobs=-1          # Number of parallel jobs (-1 = all cores, 1 = serial, None = serial)
 )
 ```
+
+**Key Parameters:**
+- `method`: Structure learning algorithm (`"hc"`, `"tabu"`, or `"mmhc"`)
+- `verbose`: If `True`, shows progress messages, progress bars, and total processing time
+- `n_jobs`: Parallel processing control:
+  - `None` or `1`: Serial processing (default)
+  - `-1`: Use all available CPU cores
+  - `> 1`: Use that many parallel workers
 
 **Attributes:**
 - `adj_mat`: Adjacency matrix of learned DAG structure
 - `data`: Original input data
-- `DF`: Discount factor estimation results
-- `Filt`: Filtered dynamic parameters
-- `Smoo`: Smoothed dynamic parameters
+- `DF`: Discount factor estimation results (contains `DF_hat` and `lpldet`)
+- `Filt`: Filtered dynamic parameters (contains `mt`, `Ct`, `Rt`, `nt`, `dt`, `ft`, `Qt`, `ets`, `lpl`, `row_names`)
+- `Smoo`: Smoothed dynamic parameters (contains `smt`, `sCt`, `SE`)
 - `node_names`: Names of variables/nodes
+- `verbose`: Whether verbose output is enabled
+- `nbf`: Burn-in time point used
 
 ### Structure Learning Methods
 
@@ -426,8 +572,12 @@ Currently available methods:
 
 - **`"mmhc"`**: **Max-Min Hill-Climbing** - First learns an undirected skeleton via MMPC (Max-Min Parents and Children), then orients edges using hill-climbing with custom MDM score. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
 
-**Experimental/Under development:**
-- **`"tabu"`**: Tabu search - Mentioned in examples but may require additional setup. In the R package, `bnlearn::tabu` provides tabu search functionality. In Python, tabu search can potentially be achieved by passing `tabu_length` parameter to pgmpy's `HillClimbSearch` via `**kwargs` when using `method="hc"`.
+- **`"tabu"`**: **Tabu search** - Uses pgmpy's HillClimbSearch with tabu search enabled (via `tabu_length` parameter). Requires `pgmpy` (install with: `pip install mdmp[hc]`). Supports `tabu_length` parameter (default: 100), `max_iter` (default: 1000000), `epsilon` (default: 0.0001), and other pgmpy HillClimbSearch parameters via `**kwargs`.
+
+**Example with tabu search:**
+```python
+model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
+```
 
 **Registered but not yet implemented:**
 - **`"ipa"`**: Integer Programming Approach using GOBNILP - Registered but currently raises `NotImplementedError`. The R package supports this via GOBNILP integration. Future Python implementation would require GOBNILP binary installation.
@@ -445,6 +595,35 @@ Currently available methods:
 3. **`plot_marginal()`**: Plot marginal posterior for a target node
 4. **`plot_stream()`**: Plot parent contributions to a child node
 5. **`plot_idag()`**: Create animated heatmap of dynamic parameters
+
+### Group analysis (`mdmp.group_analysis`)
+
+Group-level tools live under **`mdmp.group_analysis`**: **VTS** (Virtual Typical Subject — representative time series) and **IS** (Individual Structure — aggregate subject DAGs). The root package also re-exports the main entry points.
+
+**Virtual Typical Subject (VTS)** — multi-subject multivariate time series:
+
+```python
+from mdmp import compute_vts, MDM
+
+# Data: list of (T_s x N) arrays, 3D (I x k x N), or DataFrame with subject_id
+result = compute_vts(data, method="mean")      # Mean-based: avg per subject, then across
+result = compute_vts(data, method="median")    # Median-based: robust to outliers across subjects
+result = compute_vts(data, method="concatenation")  # Concatenate along time
+
+# Use VTS with MDM
+model = MDM(result.vts_data, method="hc")
+```
+
+**Individual Structure (IS) aggregation** — one global DAG from subject adjacency matrices:
+
+```python
+from mdmp import aggregate_individual_structures, plot_dag
+
+result = aggregate_individual_structures(list_of_adj_mats, tau=0.5)
+fig = plot_dag(result)  # result exposes adj_mat and node_names
+```
+
+See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/03-is-aggregation.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).
 
 ## API Reference
 
@@ -517,6 +696,45 @@ For the original R package, please cite:
 }
 ```
 
+## Versioning and releases
+
+The installed package version is exposed as `mdmp.__version__` (defined in
+[`mdmp/_version.py`](mdmp/_version.py); `pyproject.toml` reads it via setuptools
+dynamic metadata). Human-facing copies in the README (git tag install line and
+the **mdmp** BibTeX block) are kept in sync by **bump-my-version**.
+
+### Changelog
+
+Release notes live in [`CHANGELOG.md`](CHANGELOG.md). During development, add
+bullet points under `## [Unreleased]` using the existing subsections (Added,
+Changed, Fixed, etc.). When you cut a release, rename that section to
+`## [x.y.z] - YYYY-MM-DD` and update the compare links at the bottom of the file.
+
+### Bumping the version
+
+With dev dependencies installed (`uv sync` or `pip install -e ".[dev]"`):
+
+```bash
+# preview
+uvx bump-my-version bump patch --dry-run --verbose --allow-dirty
+
+# apply (use minor / major instead of patch when appropriate)
+uvx bump-my-version bump patch --allow-dirty
+```
+
+This updates `mdmp/_version.py`, `[tool.bumpversion].current_version` in
+`pyproject.toml`, and the README patterns configured under `[tool.bumpversion]`.
+If you use a lockfile for local development, run `uv lock` afterward so `uv.lock`
+stays consistent.
+
+### Release checklist
+
+1. Merge work to `main` and ensure `CHANGELOG.md` describes the release (move
+   items from `[Unreleased]` into a dated `## [x.y.z]` section).
+2. Run `bump-my-version bump` as above, then `uv lock` if applicable.
+3. Commit, create an annotated tag `vx.y.z`, and push the tag. Publish to PyPI
+   using your usual workflow.
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
@@ -531,10 +749,15 @@ This package is a Python port of the R package **mdmr**.
 
 ## Changelog
 
-### 0.6.2 (Initial Release)
+### 0.7.0 (Current Version)
 - Ported core functionality from R package mdmr
 - Implemented DLM filtering and smoothing
 - Implemented MDM structure learning (hill-climbing, tabu search, Max-Min Hill-Climbing)
 - Implemented plotting functions
 - Added comprehensive documentation
+- **Parallel Processing**: Added multiprocessing support for discount factor selection, filtering, and smoothing
+- **Progress Bars**: Integrated `tqdm` for visual progress tracking during long operations
+- **Performance Logging**: Added automatic timing and logging of total processing time
+- **Code Modularization**: Refactored code for better maintainability and testability
+- **Tabu Search**: Fully implemented tabu search algorithm with configurable parameters
 

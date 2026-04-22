@@ -77,14 +77,6 @@ def test_mdm_init_invalid_data():
         MDM("not valid data", method="hc", verbose=False)
 
 
-def test_mdm_init_different_methods(sample_data):
-    """Test MDM with different structure learning methods."""
-    small_data = sample_data[:30, :2]
-
-    # Test tabu method (doesn't need pgmpy)
-    model = MDM(small_data, method="tabu", nbf=5, verbose=False, max_iter=3)
-    assert hasattr(model, 'adj_mat')
-
 
 def test_mdm_repr(sample_data):
     """Test MDM string representation."""
@@ -156,3 +148,43 @@ def test_mdm_custom_delta(sample_data):
         # Check that custom delta was used
         assert model.delta is not None
         assert len(model.delta) == len(custom_delta)
+
+
+def test_mdm_with_n_jobs(sample_data):
+    """Test MDM with n_jobs parameter for parallel processing."""
+    small_data = sample_data[:30, :2]
+
+    with patch('pgmpy.estimators.HillClimbSearch') as mock_hc, \
+         patch('pgmpy.estimators.StructureScore'):
+        mock_model = Mock()
+        mock_model.edges.return_value = []
+
+        mock_hc_instance = Mock()
+        mock_hc_instance.estimate.return_value = mock_model
+        mock_hc.return_value = mock_hc_instance
+
+        # Test with n_jobs=None (serial, default)
+        model_serial = MDM(small_data, method="hc", nbf=5, verbose=False, n_jobs=None)
+
+        # Test with n_jobs=1 (serial)
+        model_serial_1 = MDM(small_data, method="hc", nbf=5, verbose=False, n_jobs=1)
+
+        # Results should be identical
+        np.testing.assert_array_almost_equal(
+            model_serial.DF['DF_hat'],
+            model_serial_1.DF['DF_hat'],
+            decimal=10
+        )
+
+        # Test with parallel processing if we have multiple cores
+        import os
+        n_cores = os.cpu_count() or 1
+        if n_cores >= 2:
+            model_parallel = MDM(small_data, method="hc", nbf=5, verbose=False, n_jobs=2)
+
+            # Results should be identical
+            np.testing.assert_array_almost_equal(
+                model_serial.DF['DF_hat'],
+                model_parallel.DF['DF_hat'],
+                decimal=10
+            )

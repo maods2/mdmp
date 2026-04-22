@@ -9,6 +9,7 @@ This example demonstrates how to:
 
 import numpy as np
 import pandas as pd
+
 from mdmp import MDM
 
 # Set random seed for reproducibility
@@ -23,7 +24,7 @@ print("Basic MDM Usage Example")
 print("=" * 60)
 print(f"\nData shape: {data_df.shape}")
 print(f"Variables: {list(data_df.columns)}")
-print(f"\nFirst few rows:")
+print("\nFirst few rows:")
 print(data_df.head())
 
 # Fit MDM model with default parameters (hill-climbing)
@@ -52,7 +53,7 @@ print(f"\nTotal edges: {num_edges}")
 
 # Discount factors
 print("\nSelected Discount Factors:")
-for i, (name, df_val) in enumerate(zip(model.node_names, model.DF['DF_hat'])):
+for name, df_val in zip(model.node_names, model.DF['DF_hat']):
     print(f"  {name}: {df_val:.4f}")
 
 # Filtered parameters summary

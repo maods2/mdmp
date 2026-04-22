@@ -1,6 +1,6 @@
 [project]
 name = "mdmp"
-version = "0.6.2"
+dynamic = ["version"]
 description = "Bayesian dynamic regression model (MDM) for Python"
 readme = "README.md"
 authors = [
@@ -16,6 +16,7 @@ dependencies = [
     "networkx>=2.6.0",
     "pgmpy>=0.1.25",
     "seaborn>=0.13.2",
+    "tqdm>=4.60.0",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -36,6 +37,7 @@ Homepage = "https://github.com/maods2/mdmp"
 Repository = "https://github.com/maods2/mdmp"
 
 [project.optional-dependencies]
+notears = []
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",
@@ -49,14 +51,21 @@ dev = [
     "pre-commit>=2.20.0",
     "coverage[toml]>=6.0",
     "pgmpy>=0.1.25",
+    "bump-my-version>=1.0",
 ]
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.dynamic]
+version = { attr = "mdmp._version.__version__" }
+
 [tool.setuptools]
-packages = ["mdmp", "mdmp.structure"]
+# Use automatic package discovery to include all subpackages
+# This includes: mdmp, mdmp.structure, mdmp.processing, mdmp.model, 
+# mdmp.types, mdmp.plotting, and any future subpackages
+packages = {find = {}}
 
 [tool.setuptools.package-dir]
 "" = "."
@@ -64,10 +73,37 @@ packages = ["mdmp", "mdmp.structure"]
 [tool.setuptools.package-data]
 mdmp = ["data/*.csv"]
 
+[tool.bumpversion]
+current_version = "0.6.2"
+commit = false
+tag = false
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+
+[[tool.bumpversion.files]]
+filename = "mdmp/_version.py"
+search = "__version__ = \"{current_version}\""
+replace = "__version__ = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "README.md"
+search = "pip install git+https://github.com/maods2/mdmp.git@v{current_version}"
+replace = "pip install git+https://github.com/maods2/mdmp.git@v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "README.md"
+search = """  title = {{MDMP: Bayesian Dynamic Regression Model for Python}},
+  author = {{}},
+  version = {{{current_version}}},"""
+replace = """  title = {{MDMP: Bayesian Dynamic Regression Model for Python}},
+  author = {{}},
+  version = {{{new_version}}},"""
+
 [dependency-groups]
 dev = [
     "ipykernel",
     "pytest>=8.3.5",
+    "bump-my-version>=1.0",
 ]
 
 [tool.black]

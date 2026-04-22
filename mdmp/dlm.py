@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 import numpy as np
 from scipy import special
 
-from .utils import DEFAULT_CS0_SCALE, DEFAULT_D0, DEFAULT_N0
+from .constants import DEFAULT_CS0_SCALE, DEFAULT_D0, DEFAULT_N0
 
 
 def dlm_filter(
@@ -58,12 +58,12 @@ def dlm_filter(
         - Qt : Forecast variances (T,)
         - ets : Standardized errors (T,)
         - lpl : Log predictive likelihood (T,)
-    
+
     Raises
     ------
     ValueError
         If input dimensions are incompatible.
-    
+
     Examples
     --------
     >>> import numpy as np
@@ -81,7 +81,7 @@ def dlm_filter(
     if n0 == 0:
         n0 = DEFAULT_N0
         import warnings
-        warnings.warn(f"n0 is set to {DEFAULT_N0}")
+        warnings.warn(f"n0 is set to {DEFAULT_N0}", stacklevel=2)
 
     # Initialize time series arrays (with t=0 padding)
     Y, F, G = _initialize_dlm_arrays(Yt, Ft, Gt, p, Nt)
@@ -148,14 +148,14 @@ def dlm_smooth(
         Dictionary containing:
         - smt : Smoothed means (p, T)
         - sCt : Smoothed variances (p, p, T)
-    
+
     Raises
     ------
     ValueError
         If input dimensions are incompatible.
     np.linalg.LinAlgError
         If matrix inversion fails (uses pseudo-inverse as fallback).
-    
+
     Examples
     --------
     >>> import numpy as np
@@ -223,7 +223,7 @@ def _initialize_dlm_arrays(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Initialize DLM arrays with t=0 padding.
-    
+
     Parameters
     ----------
     Yt : np.ndarray
@@ -236,7 +236,7 @@ def _initialize_dlm_arrays(
         Number of parameters.
     Nt : int
         Total number of time points including t=0.
-    
+
     Returns
     -------
     Tuple[np.ndarray, np.ndarray, np.ndarray]
@@ -271,7 +271,7 @@ def _initialize_posterior_parameters(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Initialize posterior mean and variance parameters.
-    
+
     Parameters
     ----------
     m0 : np.ndarray
@@ -286,7 +286,7 @@ def _initialize_posterior_parameters(
         Prior hyperparameter n0.
     d0 : float
         Prior hyperparameter d0.
-    
+
     Returns
     -------
     Tuple[np.ndarray, np.ndarray]
@@ -308,7 +308,7 @@ def _initialize_filtering_arrays(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Initialize filtering arrays.
-    
+
     Parameters
     ----------
     Nt : int
@@ -317,7 +317,7 @@ def _initialize_filtering_arrays(
         Prior hyperparameter n0.
     d0 : float
         Prior hyperparameter d0.
-    
+
     Returns
     -------
     Tuple of arrays
@@ -353,7 +353,7 @@ def _update_filtering_step(
 ) -> None:
     """
     Update one step of the DLM filtering algorithm.
-    
+
     Parameters
     ----------
     i : int
@@ -385,8 +385,6 @@ def _update_filtering_step(
     delta : float
         Discount factor.
     """
-    p = mt.shape[0]
-
     # ========================================================================
     # STEP 1: PRIOR DISTRIBUTION AT TIME t
     # ========================================================================
@@ -395,17 +393,17 @@ def _update_filtering_step(
     #   (theta_t | y_{t-1}) ~ t_{n_{t-1}}[a_t, R_t]
     # where n_{t-1} is the degrees of freedom, a_t is the prior mean, and
     # R_t is the prior variance-covariance matrix.
-    
+
     # Prior mean: a_t = G_t * m_{t-1}
     # Propagates the posterior mean from t-1 forward through the state equation
     at = G[:, :, i] @ mt[:, i - 1]
-    
+
     # Prior variance (scaled form): R*_t = (G_t * C*_{t-1} * G_t^T) / delta
     # where C*_{t-1} = C_{t-1} * n_{t-1} / d_{t-1} is the unscaled variance.
     # The discount factor delta controls the evolution variance, with smaller
     # delta values allowing more rapid changes in the state over time.
     RSt = (G[:, :, i] @ (Ct[:, :, i - 1] * nt[i - 1] / dt[i - 1]) @ G[:, :, i].T) / delta
-    
+
     # Prior variance (scaled): R_t = R*_t * d_{t-1} / n_{t-1}
     # Converts from unscaled to scaled form for the Student-t distribution
     Rt[:, :, i] = RSt * dt[i - 1] / nt[i - 1]
@@ -417,24 +415,24 @@ def _update_filtering_step(
     # previous observations. This also follows a Student-t distribution:
     #   (Y_t | y_{t-1}) ~ t_{n_{t-1}}[f_t, Q_t]
     # where f_t is the forecast mean and Q_t is the forecast variance.
-    
+
     # Forecast mean: f_t = F_t^T * a_t
     # Linear combination of the prior state mean with the design vector
     ft[i] = F[:, i].T @ at
-    
+
     # Forecast variance (scaled form): Q*_t = F_t^T * R*_t * F_t + 1
     # The +1 term accounts for the observational variance (assumed unit variance
     # in the scaled form). This combines uncertainty from the state evolution
     # and the observation process.
     QSt = F[:, i].T @ RSt @ F[:, i] + 1
-    
+
     # Forecast variance (scaled): Q_t = Q*_t * d_{t-1} / n_{t-1}
     Qt[i] = QSt * dt[i - 1] / nt[i - 1]
-    
+
     # Forecast error: e_t = Y_t - f_t
     # The difference between the observed value and the predicted value
     et = Y[i] - ft[i]
-    
+
     # Standardized forecast error: e*_t = e_t / sqrt(Q_t)
     # Normalized by the forecast standard deviation for diagnostic purposes
     ets[i] = et / np.sqrt(Qt[i])
@@ -446,34 +444,34 @@ def _update_filtering_step(
     #   (theta_t | y_t) ~ t_{n_t}[m_t, C_t]
     # where n_t = n_{t-1} + 1 (degrees of freedom increase by 1), m_t is the
     # posterior mean, and C_t is the posterior variance-covariance matrix.
-    
+
     # Kalman gain: A_t = R_t * F_t / Q_t
     # Determines how much to adjust the prior mean based on the forecast error.
     # Larger values indicate the observation provides more information about
     # the state components aligned with F_t.
     At = Rt[:, :, i] @ F[:, i] / Qt[i]
-    
+
     # Posterior mean: m_t = a_t + A_t * e_t
     # Updates the prior mean by adding a weighted forecast error term
     mt[:, i] = at + At * et
-    
+
     # Update precision hyperparameters for the unknown variance phi:
     #   phi ~ Gamma(n_t/2, d_t/2)
     # The degrees of freedom increase by 1: n_t = n_{t-1} + 1
     nt[i] = nt[i - 1] + 1
-    
+
     # The scale parameter accumulates squared forecast errors:
     #   d_t = d_{t-1} + (e_t^2) / Q*_t
     # This updates our estimate of the observational precision based on
     # the magnitude of the forecast error relative to its expected variance.
     dt[i] = dt[i - 1] + (et ** 2) / QSt
-    
+
     # Posterior variance (scaled form): C*_t = R*_t - A_t * A_t^T * Q*_t
     # The posterior variance is reduced from the prior variance by an amount
     # proportional to the information gained from the observation. This is the
     # matrix form of the variance update in Kalman filtering.
     CSt = RSt - np.outer(At, At) * QSt
-    
+
     # Posterior variance (scaled): C_t = C*_t * d_t / n_t
     Ct[:, :, i] = CSt * dt[i] / nt[i]
 

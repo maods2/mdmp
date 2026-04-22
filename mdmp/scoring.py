@@ -10,15 +10,22 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 from scipy.optimize import minimize_scalar
 
+from .constants import DEFAULT_NBF
 from .dlm import dlm_filter
-from .utils import DEFAULT_NBF, build_design_matrix, extract_target_series, get_default_delta
+from .processing.scoring import ScoringProcessor
+from .utils import build_design_matrix, extract_target_series, get_default_delta
+
+# Removed: _evaluate_lpl_serial, _evaluate_lpl_parallel, _evaluate_lpl_combinations
+# These are now handled by ScoringProcessor in processing/scoring.py
 
 
 def select_discount_factors(
     data: np.ndarray,
     adj_mat: np.ndarray,
     nbf: int = DEFAULT_NBF,
-    delta: Optional[np.ndarray] = None
+    delta: Optional[np.ndarray] = None,
+    n_jobs: Optional[int] = None,
+    verbose: bool = False
 ) -> Dict[str, Any]:
     """
     Select discount factors that maximize log predictive likelihood for each node.
@@ -33,6 +40,14 @@ def select_discount_factors(
         Burn-in time point. Default is 15.
     delta : np.ndarray, optional
         Sequence of discount factors. Default is np.arange(0.5, 1.01, 0.01).
+    n_jobs : int, optional
+        Number of parallel jobs. If None or 1, uses serial processing.
+        If -1, uses all available CPU cores. If > 1, uses that many workers.
+        Default is None (serial processing).
+    verbose : bool, optional
+        Whether to show progress bars. Default is False.
+    verbose : bool, optional
+        Whether to show progress bars. Default is False.
 
     Returns
     -------
@@ -40,12 +55,12 @@ def select_discount_factors(
         Dictionary containing:
         - lpldet : Log predictive likelihoods for each delta and node (nd, N)
         - DF_hat : Selected discount factors for each node (N,)
-    
+
     Raises
     ------
     ValueError
         If data and adj_mat dimensions are incompatible.
-    
+
     Examples
     --------
     >>> import numpy as np
@@ -71,15 +86,14 @@ def select_discount_factors(
         design_matrices[i], _ = build_design_matrix(data, adj_mat, i)
         target_series[i] = extract_target_series(data, i)
 
-    # Evaluate log predictive likelihood for each delta and node
-    for k in range(nd):
-        for i in range(Nn):
-            Ft = design_matrices[i]
-            Yt = target_series[i]
-
-            # Run DLM filter
-            result = dlm_filter(Yt, Ft.T, delta=delta[k])
-            lpldet[k, i] = np.sum(result['lpl'][nbf:])
+    # Evaluate log predictive likelihood for each delta and node using processor
+    processor = ScoringProcessor(n_jobs=n_jobs, verbose=verbose)
+    lpldet = processor.evaluate_lpl(
+        delta=delta,
+        design_matrices=design_matrices,
+        target_series=target_series,
+        nbf=nbf
+    )
 
     # Select best delta for each node (handling NaN values)
     DF_hat = _select_best_deltas(lpldet, delta, Nn)
@@ -98,7 +112,7 @@ def _select_best_deltas(
 ) -> np.ndarray:
     """
     Select the best discount factor for each node based on log predictive likelihood.
-    
+
     Parameters
     ----------
     lpldet : np.ndarray
@@ -109,7 +123,7 @@ def _select_best_deltas(
         Number of nodes.
     default_delta : float, optional
         Default discount factor if all values are NaN. Default is 0.9.
-    
+
     Returns
     -------
     np.ndarray
@@ -155,12 +169,12 @@ def compute_logpl(
     -------
     float
         Negative log predictive likelihood.
-    
+
     Raises
     ------
     ValueError
         If node_idx is out of bounds or adj_mat dimensions don't match data.
-    
+
     Examples
     --------
     >>> import numpy as np
@@ -322,7 +336,9 @@ def compute_structure_score(
     adj_mat: np.ndarray,
     nbf: int = DEFAULT_NBF,
     delta: Optional[np.ndarray] = None,
-    cache: Optional[Dict[str, Any]] = None
+    cache: Optional[Dict[str, Any]] = None,
+    n_jobs: Optional[int] = None,
+    verbose: bool = False
 ) -> float:
     """
     Compute total MDM score for a given structure.
@@ -373,7 +389,7 @@ def compute_structure_score(
             return cache[adj_key]
 
     # Compute score using select_discount_factors
-    df_result = select_discount_factors(data, adj_mat, nbf=nbf, delta=delta)
+    df_result = select_discount_factors(data, adj_mat, nbf=nbf, delta=delta, n_jobs=n_jobs, verbose=verbose)
     total_score = np.sum([np.max(df_result['lpldet'][:, i]) for i in range(data.shape[1])])
 
     # Store in cache if provided
