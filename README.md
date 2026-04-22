@@ -607,6 +607,7 @@ from mdmp import compute_vts, MDM
 
 # Data: list of (T_s x N) arrays, 3D (I x k x N), or DataFrame with subject_id
 result = compute_vts(data, method="mean")      # Mean-based: avg per subject, then across
+result = compute_vts(data, method="median")    # Median-based: robust to outliers across subjects
 result = compute_vts(data, method="concatenation")  # Concatenate along time
 
 # Use VTS with MDM
