@@ -103,6 +103,7 @@ replace = """  title = {{MDMP: Bayesian Dynamic Regression Model for Python}},
 dev = [
     "ipykernel",
     "pytest>=8.3.5",
+    "pytest-cov>=2.0",
     "bump-my-version>=1.0",
 ]
 

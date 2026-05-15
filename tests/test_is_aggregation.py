@@ -1,11 +1,23 @@
 """Tests for Individual Structure (IS) aggregation."""
 
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
-import networkx as nx
 
-from mdmp.group_analysis import ISAggregationResult, aggregate_individual_structures
+from mdmp.group_analysis import (
+    ISAggregateOptions,
+    ISAggregatedMDMView,
+    ISAggregationResult,
+    aggregate_individual_structures,
+    aggregate_with_options,
+)
+from mdmp.plotting import plot_dag
 
 
 def _is_dag(adj: np.ndarray) -> bool:
@@ -30,6 +42,32 @@ def test_identical_dags_preserved():
     assert r.metadata["edge_frequencies"][0, 1] == 1.0
     assert r.metadata["edge_frequencies"][1, 2] == 1.0
     assert r.n_subjects == 4
+
+
+def test_threshold_inclusive_boundary():
+    """6/10 at τ=0.6: strict excludes edge (=), inclusive keeps edge."""
+    edge01 = np.zeros((2, 2), dtype=int)
+    edge01[0, 1] = 1
+    no_edge = np.zeros((2, 2), dtype=int)
+    mats = [edge01.copy() for _ in range(6)] + [no_edge.copy() for _ in range(4)]
+    rs = aggregate_individual_structures(mats, tau=0.6, threshold_mode="strict")
+    ri = aggregate_individual_structures(mats, tau=0.6, threshold_mode="inclusive")
+    assert rs.metadata["threshold_mode"] == "strict"
+    assert rs.metadata["edge_frequencies"][0, 1] == pytest.approx(0.6)
+    assert rs.adj_mat[0, 1] == 0.0
+    assert ri.adj_mat[0, 1] == 1.0
+
+
+def test_aggregate_with_options_matches_flat_keywords():
+    edge01 = np.zeros((2, 2), dtype=int)
+    edge01[0, 1] = 1
+    no_edge = np.zeros((2, 2), dtype=int)
+    mats = [edge01.copy() for _ in range(6)] + [no_edge.copy() for _ in range(4)]
+    opts = ISAggregateOptions(threshold_mode="inclusive")
+    flat = aggregate_individual_structures(mats, tau=0.6, threshold_mode="inclusive")
+    wrapped = aggregate_with_options(mats, tau=0.6, options=opts)
+    np.testing.assert_array_equal(wrapped.adj_mat, flat.adj_mat)
+    assert wrapped.metadata["threshold_mode"] == flat.metadata["threshold_mode"]
 
 
 def test_majority_threshold():
@@ -113,4 +151,28 @@ def test_non_binary_raises():
 def test_result_type():
     a = np.zeros((2, 2), dtype=int)
     r = aggregate_individual_structures([a], tau=0.5)
+    assert isinstance(r, ISAggregatedMDMView)
     assert isinstance(r, ISAggregationResult)
+    assert r.global_beta_mc is None
+
+
+def test_plot_data_shape_validates():
+    with pytest.raises(ValueError, match="plot_data"):
+        aggregate_individual_structures(
+            [np.zeros((2, 2), dtype=int)],
+            tau=0.5,
+            plot_data=np.zeros((5, 3)),
+        )
+
+
+def test_plot_dag_accepts_is_aggregated_view():
+    dag = np.zeros((3, 3), dtype=int)
+    dag[0, 1] = 1
+    dag[1, 2] = 1
+    mats = [dag.copy() for _ in range(2)]
+    r = aggregate_individual_structures(mats, tau=0.5, node_names=["a", "b", "c"])
+    fig = plot_dag(r, plot_type="graph")
+    assert fig is not None
+    plt.close(fig)
+    fig2 = plot_dag(r, plot_type="heatmap")
+    plt.close(fig2)

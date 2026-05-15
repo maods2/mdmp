@@ -14,15 +14,24 @@ from .datasets import (
     load_dataset,
 )
 from .dlm import dlm_filter, dlm_smooth
-from .model import MDM
+from .model import MDM, refit_mdm_on_structure
 from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
 from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
 from .validation import validate_multi_subject_data
 from .group_analysis import (
+    GlobalBetaMCResult,
+    ISAggregateOptions,
+    ISAggregatedMDMView,
     ISAggregationResult,
+    MCContributorMode,
+    MCPosteriorSource,
+    PoolingMode,
+    ThresholdMode,
     VTSResult,
     aggregate_individual_structures,
+    aggregate_with_options,
+    build_plot_filt_from_subjects,
     compute_vts,
 )
 
@@ -34,6 +43,7 @@ dlm_smoo = dlm_smooth            # R: dlm_smoo
 __all__ = [
     # Main class
     "MDM",
+    "refit_mdm_on_structure",
     "StructureLearner",
 
     # Core DLM functions (R exports)
@@ -62,7 +72,16 @@ __all__ = [
     "compute_vts",
     "VTSResult",
     "aggregate_individual_structures",
+    "aggregate_with_options",
+    "GlobalBetaMCResult",
     "ISAggregationResult",
+    "ISAggregatedMDMView",
+    "ISAggregateOptions",
+    "MCContributorMode",
+    "MCPosteriorSource",
+    "PoolingMode",
+    "ThresholdMode",
+    "build_plot_filt_from_subjects",
     "validate_multi_subject_data",
 ]
 
