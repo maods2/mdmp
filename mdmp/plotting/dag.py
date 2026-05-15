@@ -6,10 +6,47 @@ from typing import TYPE_CHECKING, Any, List, Literal, Optional
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 from matplotlib.figure import Figure
 
 if TYPE_CHECKING:
     from ..model import MDM
+
+
+def _hierarchical_layout(
+    G: nx.DiGraph,
+    *,
+    level_gap: float = 1.0,
+    layout_seed: Optional[int] = 0,
+) -> dict:
+    """
+    Layered positions for a directed graph: Graphviz ``dot`` when available,
+    otherwise coordinates from :func:`networkx.topological_generations`.
+    Non-DAGs use :func:`networkx.spring_layout`.
+    """
+    if G.number_of_nodes() == 0:
+        return {}
+
+    if not nx.is_directed_acyclic_graph(G):
+        return nx.spring_layout(G, k=1.5, iterations=50, seed=layout_seed)
+
+    try:
+        return nx.nx_agraph.graphviz_layout(G, prog="dot")
+    except Exception:
+        pass
+
+    pos: dict = {}
+    for level, gen in enumerate(nx.topological_generations(G)):
+        nodes = list(gen)
+        n_nodes = len(nodes)
+        for i, node in enumerate(nodes):
+            if n_nodes > 1:
+                x = (i - (n_nodes - 1) / 2.0) * level_gap
+            else:
+                x = 0.0
+            y = -float(level) * level_gap
+            pos[node] = (x, y)
+    return pos
 
 
 def plot_dag(
@@ -22,7 +59,13 @@ def plot_dag(
     label_color: str = "white",
     arrow_size: float = 4.0,
     figsize: Optional[tuple] = None,
-    layout_seed: Optional[int] = 0
+    layout_seed: Optional[int] = 0,
+    *,
+    hierarchical: bool = True,
+    level_gap: float = 1.0,
+    node_size: float = 2000.0,
+    font_size: int = 10,
+    edge_width: float = 2.0,
 ) -> Figure:
     """
     Plot DAG structure as a graph or heatmap.
@@ -48,89 +91,114 @@ def plot_dag(
     arrow_size : float, optional
         Size of arrow heads. Default is 4.0.
     figsize : tuple, optional
-        Figure size. Default is (8, 8).
+        Figure size. Default scales lightly with node count for ``graph``.
     layout_seed : int, optional
-        Random seed for graph layout. Use None for non-deterministic layout.
+        Random seed for spring layout (cycles / ``hierarchical=False``). Use None for nondeterministic layout.
+    hierarchical : bool, optional
+        If True (default), use layered layout (Graphviz ``dot`` when ``pygraphviz``
+        and Graphviz are available, else topological generations). If False, use
+        ``spring_layout``.
+    level_gap : float, optional
+        Horizontal/vertical spacing between layers in the topological fallback
+        (ignored when Graphviz layout succeeds).
+    node_size : float, optional
+        Node diameter passed to :func:`networkx.draw_networkx_nodes`.
+    font_size : int, optional
+        Font size for node labels on the graph.
+    edge_width : float, optional
+        Width of directed edges.
 
     Returns
     -------
     matplotlib.figure.Figure
         Figure object.
     """
-    adj_mat = mdm_object.adj_mat
-    n = adj_mat.shape[0]
+    adj_mat = np.asarray(mdm_object.adj_mat)
+    n = int(adj_mat.shape[0])
 
     if node_labels is None:
-        if hasattr(mdm_object, 'node_names') and mdm_object.node_names:
-            node_labels = mdm_object.node_names
+        if hasattr(mdm_object, "node_names") and mdm_object.node_names:
+            node_labels = list(mdm_object.node_names)
         else:
-            node_labels = [f"V{i+1}" for i in range(n)]
-
-    if figsize is None:
-        figsize = (8, 8)
+            node_labels = [f"V{i + 1}" for i in range(n)]
 
     if plot_type == "heatmap":
+        if figsize is None:
+            figsize = (8, 8)
         fig, ax = plt.subplots(figsize=figsize)
 
-        # Create heatmap
-        im = ax.imshow(adj_mat, cmap='RdYlBu_r', aspect='auto', vmin=0, vmax=1)
+        im = ax.imshow(adj_mat, cmap="RdYlBu_r", aspect="auto", vmin=0, vmax=1)
 
-        # Set ticks and labels
         ax.set_xticks(range(n))
         ax.set_yticks(range(n))
-        ax.set_xticklabels(node_labels, rotation=45, ha='right')
+        ax.set_xticklabels(node_labels, rotation=45, ha="right")
         ax.set_yticklabels(node_labels)
 
-        # Add colorbar
-        plt.colorbar(im, ax=ax, label='Edge')
+        plt.colorbar(im, ax=ax, label="Edge")
 
-        ax.set_xlabel('Child', fontsize=12)
-        ax.set_ylabel('Parent', fontsize=12)
-        ax.set_title('DAG Structure (Adjacency Matrix)', fontsize=14)
+        ax.set_xlabel("Child", fontsize=12)
+        ax.set_ylabel("Parent", fontsize=12)
+        ax.set_title("DAG Structure (Adjacency Matrix)", fontsize=14)
 
         plt.tight_layout()
         return fig
 
-    else:  # graph
-        fig, ax = plt.subplots(figsize=figsize)
+    if figsize is None:
+        side = min(12.0, 5.5 + 0.45 * n)
+        figsize = (side, side)
 
-        # Create directed graph
-        G = nx.DiGraph()
-        G.add_nodes_from(range(n))
+    fig, ax = plt.subplots(figsize=figsize)
 
-        # Add edges
-        edges = []
-        for i in range(n):
-            for j in range(n):
-                if adj_mat[i, j] != 0:
-                    G.add_edge(i, j)
-                    edges.append((i, j))
+    G = nx.DiGraph()
+    G.add_nodes_from(range(n))
 
-        # Layout
+    for i in range(n):
+        for j in range(n):
+            if adj_mat[i, j] != 0:
+                G.add_edge(i, j)
+
+    if hierarchical:
+        pos = _hierarchical_layout(G, level_gap=level_gap, layout_seed=layout_seed)
+    else:
         pos = nx.spring_layout(G, k=1.5, iterations=50, seed=layout_seed)
 
-        # Draw nodes
-        nx.draw_networkx_nodes(
-            G, pos, ax=ax, node_color=node_color,
-            node_size=2000, alpha=0.9
-        )
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        ax=ax,
+        node_color=node_color,
+        node_size=node_size,
+        alpha=0.9,
+    )
 
-        # Draw edges
-        nx.draw_networkx_edges(
-            G, pos, ax=ax, edge_color=edge_color,
-            arrows=True, arrowsize=arrow_size*10,
-            arrowstyle='->', width=2, alpha=0.7
-        )
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        ax=ax,
+        edge_color=edge_color,
+        arrows=True,
+        arrowsize=arrow_size * 10,
+        arrowstyle="->",
+        width=edge_width,
+        alpha=0.7,
+    )
 
-        # Draw labels
-        labels = {i: node_labels[i] for i in range(n)}
-        nx.draw_networkx_labels(
-            G, pos, labels, ax=ax,
-            font_color=label_color, font_weight='bold', font_size=5
-        )
+    labels = {i: node_labels[i] for i in range(n)}
+    nx.draw_networkx_labels(
+        G,
+        pos,
+        labels,
+        ax=ax,
+        font_color=label_color,
+        font_weight="bold",
+        font_size=font_size,
+    )
 
-        ax.set_title('DAG Structure', fontsize=14)
-        ax.axis('off')
+    if show_legend:
+        ax.legend()
 
-        plt.tight_layout()
-        return fig
+    ax.set_title("DAG Structure", fontsize=14)
+    ax.axis("off")
+
+    plt.tight_layout()
+    return fig

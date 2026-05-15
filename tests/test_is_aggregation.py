@@ -11,9 +11,11 @@ import pandas as pd
 import pytest
 
 from mdmp.group_analysis import (
+    ISAggregateOptions,
     ISAggregatedMDMView,
     ISAggregationResult,
     aggregate_individual_structures,
+    aggregate_with_options,
 )
 from mdmp.plotting import plot_dag
 
@@ -40,6 +42,32 @@ def test_identical_dags_preserved():
     assert r.metadata["edge_frequencies"][0, 1] == 1.0
     assert r.metadata["edge_frequencies"][1, 2] == 1.0
     assert r.n_subjects == 4
+
+
+def test_threshold_inclusive_boundary():
+    """6/10 at τ=0.6: strict excludes edge (=), inclusive keeps edge."""
+    edge01 = np.zeros((2, 2), dtype=int)
+    edge01[0, 1] = 1
+    no_edge = np.zeros((2, 2), dtype=int)
+    mats = [edge01.copy() for _ in range(6)] + [no_edge.copy() for _ in range(4)]
+    rs = aggregate_individual_structures(mats, tau=0.6, threshold_mode="strict")
+    ri = aggregate_individual_structures(mats, tau=0.6, threshold_mode="inclusive")
+    assert rs.metadata["threshold_mode"] == "strict"
+    assert rs.metadata["edge_frequencies"][0, 1] == pytest.approx(0.6)
+    assert rs.adj_mat[0, 1] == 0.0
+    assert ri.adj_mat[0, 1] == 1.0
+
+
+def test_aggregate_with_options_matches_flat_keywords():
+    edge01 = np.zeros((2, 2), dtype=int)
+    edge01[0, 1] = 1
+    no_edge = np.zeros((2, 2), dtype=int)
+    mats = [edge01.copy() for _ in range(6)] + [no_edge.copy() for _ in range(4)]
+    opts = ISAggregateOptions(threshold_mode="inclusive")
+    flat = aggregate_individual_structures(mats, tau=0.6, threshold_mode="inclusive")
+    wrapped = aggregate_with_options(mats, tau=0.6, options=opts)
+    np.testing.assert_array_equal(wrapped.adj_mat, flat.adj_mat)
+    assert wrapped.metadata["threshold_mode"] == flat.metadata["threshold_mode"]
 
 
 def test_majority_threshold():

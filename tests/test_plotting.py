@@ -46,6 +46,9 @@ def test_plot_dag_does_not_crash(mock_mdm_model):
     fig = plot_dag(mock_mdm_model, plot_type="heatmap")
     assert fig is not None
 
+    fig = plot_dag(mock_mdm_model, plot_type="graph", hierarchical=False, layout_seed=1)
+    assert fig is not None
+
 
 def test_plot_arcs_does_not_crash(mock_mdm_model):
     """Test that plot_arcs doesn't crash."""
@@ -53,6 +56,20 @@ def test_plot_arcs_does_not_crash(mock_mdm_model):
 
     fig = plot_arcs(mock_mdm_model, plot_type="connections", distribution="filt")
     assert fig is not None
+
+
+def test_plot_arcs_grid_shape_helpers():
+    from mdmp.plotting.parameters import _default_plot_arcs_figsize, _grid_shape
+
+    assert _grid_shape(0) == (1, 1)
+    assert _grid_shape(1) == (1, 1)
+    assert _grid_shape(4) == (1, 4)
+    assert _grid_shape(5) == (2, 4)
+    assert _grid_shape(8) == (2, 4)
+    assert _grid_shape(9) == (3, 4)
+    assert _grid_shape(5, max_cols=3) == (2, 3)
+    w, h = _default_plot_arcs_figsize(2, 4)
+    assert w > 0 and h > 0
 
 
 def test_plot_marginal_does_not_crash(mock_mdm_model):

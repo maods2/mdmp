@@ -13,16 +13,28 @@ or::
 
 from .aggregation import (
     GlobalBetaMCResult,
+    ISAggregateOptions,
     ISAggregatedMDMView,
     ISAggregationResult,
+    MCContributorMode,
+    MCPosteriorSource,
+    PoolingMode,
     aggregate_individual_structures,
+    aggregate_with_options,
     build_plot_filt_from_subjects,
 )
+from .voting import ThresholdMode
 
 __all__ = [
     "GlobalBetaMCResult",
+    "ISAggregateOptions",
     "ISAggregatedMDMView",
     "ISAggregationResult",
+    "MCContributorMode",
+    "MCPosteriorSource",
+    "PoolingMode",
+    "ThresholdMode",
     "aggregate_individual_structures",
+    "aggregate_with_options",
     "build_plot_filt_from_subjects",
 ]

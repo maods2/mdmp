@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 
 from types import SimpleNamespace
 from typing import List, Tuple
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -79,6 +80,16 @@ def test_aggregate_global_beta_posterior_mean_approximation():
     assert np.nanmean(col) == pytest.approx(mt[1], abs=0.08)
 
 
+def _add_rt_to_filt(filt: dict) -> dict:
+    out = dict(filt)
+    rt = {}
+    for c in filt["Ct"]:
+        Cc = np.asarray(filt["Ct"][c], dtype=float)
+        rt[c] = Cc.copy()
+    out["Rt"] = rt
+    return out
+
+
 def _synth_filtered_n2_t5(
     parent_coef_at_t2: Tuple[float, float, float],
 ) -> List[dict]:
@@ -134,6 +145,62 @@ def test_aggregate_global_beta_mean_with_edge():
     assert out.edges == [(0, 1)]
     assert out.n_contributors[0] == 2
     assert np.nanmean(out.beta_draws[:, 0]) == pytest.approx(3.0, abs=0.05)
+
+
+def test_aggregate_global_beta_pooled_draws_wider_with_heterogeneous_subject_variance():
+    """Same edge mean across subjects; higher per-subject uncertainty inflates pooled MC spread."""
+    e01 = np.array([[0, 1], [0, 0]], dtype=int)
+    T, tix, beta = 5, 2, 2.0
+
+    def filt_child1(c_diag: float) -> dict:
+        n = 2
+        mt, Ct, nt, dt = {}, {}, {}, {}
+        for c in range(n):
+            if c == 0:
+                mt[c] = np.zeros((1, T))
+                Ct[c] = np.ones((1, 1, T)) * 1e-6
+            else:
+                m = np.zeros((2, T))
+                m[1, tix] = beta
+                mt[c] = m
+                C = np.eye(2) * c_diag
+                cc = np.zeros((2, 2, T))
+                for ti in range(T):
+                    cc[:, :, ti] = C
+                Ct[c] = cc
+            nt[c] = np.full(T, 80.0)
+            dt[c] = np.full(T, 80.0)
+        return {"mt": mt, "Ct": Ct, "nt": nt, "dt": dt}
+
+    tight = 1e-6
+    hom = [filt_child1(tight), filt_child1(tight)]
+    het = [filt_child1(tight), filt_child1(4.0)]
+    n_mc = 12_000
+    kw = dict(
+        tau=0.5,
+        time_index=tix,
+        n_draws=n_mc,
+        pooling="mean_with_edge",
+    )
+    r_hom = aggregate_individual_structures(
+        [e01, e01],
+        filtered_per_subject=hom,
+        rng=np.random.default_rng(101),
+        **kw,
+    )
+    r_het = aggregate_individual_structures(
+        [e01, e01],
+        filtered_per_subject=het,
+        rng=np.random.default_rng(101),
+        **kw,
+    )
+    col_hom = r_hom.global_beta_mc.beta_draws[:, 0]
+    col_het = r_het.global_beta_mc.beta_draws[:, 0]
+    assert np.nanmean(col_hom) == pytest.approx(beta, abs=0.06)
+    assert np.nanmean(col_het) == pytest.approx(beta, abs=0.06)
+    v_hom = float(np.nanvar(col_hom))
+    v_het = float(np.nanvar(col_het))
+    assert v_het > v_hom * 8.0
 
 
 def test_aggregate_global_beta_sum_with_edge():
@@ -218,6 +285,87 @@ def test_aggregate_global_beta_time_indices_multi():
     assert gb is not None
     assert gb.beta_draws.shape == (50, 1, 3)
     assert gb.time_indices_mc == (1, 2, 3)
+
+
+def test_aggregate_global_beta_beta_mean_var():
+    e01 = np.array([[0, 1], [0, 0]], dtype=int)
+    filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
+    rng = np.random.default_rng(3)
+    r = aggregate_individual_structures(
+        [e01, e01],
+        tau=0.5,
+        filtered_per_subject=filt[:2],
+        time_index=2,
+        n_draws=200,
+        rng=rng,
+    )
+    gb = r.global_beta_mc
+    assert gb is not None
+    assert gb.beta_mean is not None and gb.beta_var is not None
+    assert gb.beta_mean.shape == (1,)
+    assert gb.beta_var.shape == (1,)
+    assert np.isfinite(float(gb.beta_mean[0]))
+
+
+def test_aggregate_global_beta_smoothed_posterior():
+    e01 = np.array([[0, 1], [0, 0]], dtype=int)
+    filt0 = _add_rt_to_filt(_synth_filtered_n2_t5((1.5, 0.0, 0.0))[0])
+    rng = np.random.default_rng(11)
+    r = aggregate_individual_structures(
+        [e01],
+        tau=0.5,
+        filtered_per_subject=[filt0],
+        time_index=2,
+        n_draws=30,
+        rng=rng,
+        mc_posterior="smoothed",
+    )
+    gb = r.global_beta_mc
+    assert gb is not None
+    assert gb.metadata.get("mc_posterior") == "smoothed"
+    assert gb.beta_draws.shape == (30, 1)
+    assert np.all(np.isfinite(gb.beta_draws[:, 0]))
+
+
+def test_mc_contributors_all_subjects_requires_refit():
+    e01 = np.array([[0, 1], [0, 0]], dtype=int)
+    filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))[:1]
+    with pytest.raises(ValueError, match="mc_refit_global_structure"):
+        aggregate_individual_structures(
+            [e01],
+            tau=0.5,
+            filtered_per_subject=filt,
+            time_index=2,
+            n_draws=5,
+            rng=np.random.default_rng(0),
+            mc_contributors="all_subjects",
+        )
+
+
+@patch("mdmp.group_analysis.is.aggregation.refit_mdm_on_structure")
+def test_mc_all_subjects_after_mock_refit(mock_refit):
+    e01 = np.array([[0, 1], [0, 0]], dtype=int)
+    shared = _add_rt_to_filt(_synth_filtered_n2_t5((3.0, 3.0, 3.0))[0])
+
+    def _fake(data, adj_mat, **kwargs):
+        return SimpleNamespace(Filt=shared, Smoo={})
+
+    mock_refit.side_effect = _fake
+    T, n = 5, 2
+    rng = np.random.default_rng(99)
+    r = aggregate_individual_structures(
+        [e01.copy(), e01.copy()],
+        tau=0.5,
+        data_per_subject=[np.zeros((T, n)), np.ones((T, n))],
+        time_index=2,
+        n_draws=40,
+        rng=rng,
+        mc_refit_global_structure=True,
+        mc_contributors="all_subjects",
+    )
+    gb = r.global_beta_mc
+    assert gb.n_contributors[0] == 2
+    assert gb.metadata["mc_contributors"] == "all_subjects"
 
 
 def test_aggregate_global_beta_mc_quantiles():

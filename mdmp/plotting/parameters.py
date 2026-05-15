@@ -18,6 +18,59 @@ from ._input_checks import (
 if TYPE_CHECKING:
     from ..model import MDM
 
+_MAX_ARC_COLS = 4
+
+
+def _grid_shape(n_panels: int, *, max_cols: int = _MAX_ARC_COLS) -> tuple[int, int]:
+    """Return ``(nrows, ncols)`` for ``n_panels`` subplots with at most ``max_cols`` per row."""
+    if n_panels <= 0:
+        return (1, 1)
+    ncols = min(max_cols, n_panels)
+    nrows = (n_panels + ncols - 1) // ncols
+    return (nrows, ncols)
+
+
+def _default_plot_arcs_figsize(nrows: int, ncols: int) -> tuple[float, float]:
+    """Scale default figure size with the subplot grid."""
+    width = min(18.0, 3.2 * ncols + 2.0)
+    height = min(22.0, 2.8 * nrows + 1.5)
+    return (width, height)
+
+
+def _count_matching_arc_panels(
+    mdm_object: Any,
+    mt_list: list,
+    distribution: Literal["filt", "smoo"],
+    plot_type: Literal["connections", "intercepts", "all"],
+) -> int:
+    """Count parameters that would be drawn for the given ``plot_type`` filter."""
+    n = 0
+    for node in range(len(mt_list)):
+        mt_node = mt_list[node]
+        if mt_node.ndim == 1:
+            mt_node = mt_node.reshape(1, -1)
+
+        name_src = mdm_object.Filt if distribution == "filt" else mdm_object.Smoo
+        row_names = name_src.get("row_names") or {}
+        if node in row_names:
+            param_names = row_names[node]
+        else:
+            param_names = [
+                f"beta0_{mdm_object.node_names[node] if hasattr(mdm_object, 'node_names') else node}"
+            ]
+
+        for param in range(mt_node.shape[0]):
+            name = param_names[param] if param < len(param_names) else f"param_{param}"
+            is_intercept = "beta0" in name
+            is_connection = "->" in str(name)
+
+            if (plot_type == "connections" and not is_connection) or (
+                plot_type == "intercepts" and not is_intercept
+            ) or (plot_type == "all" and not (is_connection or is_intercept)):
+                continue
+            n += 1
+    return n
+
 
 def plot_arcs(
     mdm_object: Any,
@@ -40,7 +93,8 @@ def plot_arcs(
     ci_level : float, optional
         Confidence interval level. Default is 0.95.
     figsize : tuple, optional
-        Figure size. Default is (12, 8).
+        Figure size. If omitted, a default is chosen from the subplot grid
+        (at most four columns; unused axes are hidden).
 
     Returns
     -------
@@ -60,11 +114,13 @@ def plot_arcs(
         SE_list = mdm_object.Smoo['SE'] # Standard errors
         use_se = True
 
+    n_panels = _count_matching_arc_panels(mdm_object, mt_list, distribution, plot_type)
+    nrows, ncols = _grid_shape(n_panels)
     if figsize is None:
-        figsize = (12, 8)
+        figsize = _default_plot_arcs_figsize(nrows, ncols)
 
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
-    axes = axes.flatten()
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+    axes = np.atleast_1d(axes).ravel()
 
     plot_idx = 0
     for node in range(len(mt_list)):
@@ -136,8 +192,6 @@ def plot_arcs(
             ax.legend(fontsize=8)
 
             plot_idx += 1
-            if plot_idx >= len(axes):
-                break
 
     # Hide unused subplots
     for idx in range(plot_idx, len(axes)):

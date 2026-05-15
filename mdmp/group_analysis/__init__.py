@@ -34,9 +34,15 @@ from .vts import (
 
 _is = importlib.import_module("mdmp.group_analysis.is")
 aggregate_individual_structures = _is.aggregate_individual_structures
+aggregate_with_options = _is.aggregate_with_options
 ISAggregationResult = _is.ISAggregationResult
 ISAggregatedMDMView = _is.ISAggregatedMDMView
+ISAggregateOptions = _is.ISAggregateOptions
 GlobalBetaMCResult = _is.GlobalBetaMCResult
+MCContributorMode = _is.MCContributorMode
+MCPosteriorSource = _is.MCPosteriorSource
+PoolingMode = _is.PoolingMode
+ThresholdMode = _is.ThresholdMode
 build_plot_filt_from_subjects = _is.build_plot_filt_from_subjects
 
 __all__ = [
@@ -52,8 +58,14 @@ __all__ = [
     "global_median",
     "list_estimators",
     "aggregate_individual_structures",
+    "aggregate_with_options",
     "ISAggregationResult",
     "ISAggregatedMDMView",
+    "ISAggregateOptions",
     "GlobalBetaMCResult",
+    "MCContributorMode",
+    "MCPosteriorSource",
+    "PoolingMode",
+    "ThresholdMode",
     "build_plot_filt_from_subjects",
 ]

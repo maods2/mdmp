@@ -47,7 +47,8 @@ def build_design_matrix(
     Nt = data.shape[0]
 
     # Count number of parameters: intercept + number of parents
-    num_parents = np.sum(adj_mat[:, node_idx])
+    # Cast to int so float adjacency (e.g. from refit paths) does not yield np.float64.
+    num_parents = int(np.sum(adj_mat[:, node_idx]))
     if adj_mat[node_idx, node_idx] == 0:
         num_parents += 1  # Always include intercept
 
