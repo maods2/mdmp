@@ -22,7 +22,7 @@ Key distinctions to keep in mind:
   Subjects without the edge are excluded from both the numerator and the
   divisor (they do not enter as zeros).
 
-* **Fixed-structure inference.**  All posterior draws are conditioned on G*:
+* **Fixed-structure inference.**  All posterior samples are conditioned on G*:
 
       p(θ | G*)
 
@@ -59,16 +59,16 @@ PoolingMode = Literal[
 @dataclass
 class GlobalBetaMCResult:
     """
-    Monte Carlo draws of pooled edge coefficients aligned to a consensus DAG.
+    Monte Carlo samples of pooled edge coefficients aligned to a consensus DAG.
 
     Statistical Interpretation
     --------------------------
     **What these intervals represent.**
-    ``beta_draws`` encodes uncertainty propagated from each subject's DLM
+    ``beta_samples`` encodes uncertainty propagated from each subject's DLM
     state posterior through the align-and-pool transform, conditioned on the
     fixed consensus DAG G*.  Specifically:
 
-    * Draws are taken **independently** across subjects (no joint hierarchical
+    * Samples are taken **independently** across subjects (no joint hierarchical
       model, no shrinkage, no between-subject covariance structure).
     * Pooling with ``pooling='conditional_mean_among_edge_subjects'`` (or its
       backward-compatible alias ``'mean_with_edge'``) estimates:
@@ -87,17 +87,17 @@ class GlobalBetaMCResult:
 
     Procedure
     ---------
-    1. For each replicate :math:`b=1,\\ldots,B`, draw a regression state vector
-       per subject at the chosen time index(es) using :math:`(m_{i,t}, C_{i,t},
+    1. For each replicate :math:`b=1,\\ldots,B`, sample a regression state vector
+       per subject at every filter time index using :math:`(m_{i,t}, C_{i,t},
        n_t, d_t)` from **filtered** outputs, or :math:`(m,C)` from **smoothed**
        ``smt``/``sCt`` with :math:`n_t,d_t` taken from the filter at the same
        time when ``mc_posterior='smoothed'``.
 
        .. note::
-           Smoothed Monte Carlo draws use smoothed state moments together with
+           Smoothed Monte Carlo samples use smoothed state moments together with
            filtered variance parameters at the same time index.  This is a
            pragmatic approximation to the full smoothed Student-t posterior,
-           not an exact draw from the joint smoothing distribution.
+           not an exact sample from the joint smoothing distribution.
 
     2. For each global edge (p → c), align the local coefficient for parent p
        in each contributing subject and pool.  With
@@ -113,22 +113,22 @@ class GlobalBetaMCResult:
        edge; :math:`A \\le S`.  For ``mc_contributors='all_subjects'`` after
        global refit, typically :math:`A = S`.
 
-    3. Columns of ``beta_draws`` (and optional quantile / nan-mean summaries)
+    3. Columns of ``beta_samples`` (and optional quantile / nan-mean summaries)
        are the empirical distribution of
        :math:`\\{\\bar{\\theta}_t^{(b)}\\}_{b=1}^B`.
 
     Attributes
     ----------
-    beta_draws : np.ndarray
-        Shape ``(mc_n_samples, n_edges)`` for a single time index, or
-        ``(mc_n_samples, n_edges, n_times)`` when multiple times are requested.
+    beta_samples : np.ndarray
+        Shape ``(mc_n_samples, n_edges, T)`` with ``T`` the filter series length.
     edges : list of tuple
-        ``(parent_idx, child_idx)`` in the same column order as ``beta_draws``.
+        ``(parent_idx, child_idx)`` in the same column order as ``beta_samples``.
     n_contributors : np.ndarray
         Per-edge count :math:`A` of subjects that entered the mean or sum for
         that edge.
     time_index : int
-        First / reference time slice.
+        Always ``0`` (legacy field; use ``time_indices_mc`` for the full index
+        range ``0 … T-1``).
     pooling : str
         Pooling policy label (``'conditional_mean_among_edge_subjects'`` or
         ``'conditional_sum_among_edge_subjects'``; legacy names
@@ -138,25 +138,25 @@ class GlobalBetaMCResult:
         ``mc_contributors``, ``pooling_semantics`` (human-readable description
         of what the pooling computes), and ``contributors_per_edge`` (mapping
         ``(parent_idx, child_idx)`` → contributor count).
-    time_indices_mc : tuple of int, optional
-        Time indices when ``beta_draws`` has a time dimension.
+    time_indices_mc : tuple of int
+        Time indices ``(0, 1, …, T-1)`` aligned with the last axis of ``beta_samples``.
     beta_quantiles : np.ndarray, optional
-        Empirical quantiles of ``beta_draws`` along the draw axis.
+        Empirical quantiles of ``beta_samples`` along the sample axis.
     quantile_levels : tuple of float, optional
         Probability levels for ``beta_quantiles``.
     beta_mean : np.ndarray, optional
-        ``numpy.nanmean`` over draws (axis 0).
+        ``numpy.nanmean`` over samples (axis 0).
     beta_var : np.ndarray, optional
-        ``numpy.nanvar`` over draws (axis 0).
+        ``numpy.nanvar`` over samples (axis 0).
     """
 
-    beta_draws: np.ndarray
+    beta_samples: np.ndarray
     edges: List[Tuple[int, int]]
     n_contributors: np.ndarray
     time_index: int
     pooling: str
     metadata: Dict[str, Any] = field(default_factory=dict)
-    time_indices_mc: Optional[Tuple[int, ...]] = None
+    time_indices_mc: Tuple[int, ...] = ()
     beta_quantiles: Optional[np.ndarray] = None
     quantile_levels: Optional[Tuple[float, ...]] = None
     beta_mean: Optional[np.ndarray] = None
@@ -285,14 +285,16 @@ class ISAggregateOptions:
     Bundles keyword-only arguments for :func:`aggregate_individual_structures`.
 
     Only :class:`ISAggregateOptions` fields are optional configuration; the
-    graph list and ``tau`` stay on :func:`aggregate_with_options` /
-    :func:`compute_individual_structure_consensus` / the main aggregate
-    function.  Defaults match :func:`aggregate_individual_structures`.
+    graph list and ``tau`` stay on :func:`aggregate_with_options` and
+    :func:`aggregate_individual_structures`.  Defaults match the latter.
 
     The ``pooling`` field accepts the canonical conditional names
     ``'conditional_mean_among_edge_subjects'`` and
     ``'conditional_sum_among_edge_subjects'``, as well as the legacy aliases
     ``'mean_with_edge'`` and ``'sum_with_edge'`` (identical behaviour).
+
+    ``mc_refit_global_structure=None`` selects auto mode: refit on G* for
+    MDM-like inputs, individual filtered posteriors otherwise.
     """
 
     mc_n_samples: int = 500
@@ -301,7 +303,7 @@ class ISAggregateOptions:
     mc_quantiles: Optional[Sequence[float]] = None
     mc_posterior: MCPosteriorSource = "filtered"
     mc_contributors: MCContributorMode = "individual_edge"
-    mc_refit_global_structure: bool = False
+    mc_refit_global_structure: Optional[bool] = None
     mc_refit_n_jobs: Optional[int] = None
 
 
@@ -317,15 +319,13 @@ class ISMonteCarloOptions:
     """Monte Carlo / refit options (global edge posterior given G*)."""
 
     filtered_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
-    time_index: int = 0
-    time_indices: Optional[Sequence[int]] = None
     mc_n_samples: int = 0
     rng: Optional[Any] = None
     pooling: PoolingMode = "mean_with_edge"
     mc_quantiles: Optional[Sequence[float]] = None
     mc_posterior: MCPosteriorSource = "filtered"
     mc_contributors: MCContributorMode = "individual_edge"
-    mc_refit_global_structure: bool = False
+    mc_refit_global_structure: Optional[bool] = None
     data_per_subject: Optional[Sequence[np.ndarray]] = None
     mc_refit_n_jobs: Optional[int] = None
 

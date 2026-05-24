@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `aggregate_individual_structures`: `mc_refit_global_structure=None` (default) refits
+  on the consensus DAG when inputs are MDM-like; pass `False` for the previous
+  individual-DAG filtered posterior path.
+- Global-beta Monte Carlo always runs at every filter time step ``0 … T-1``;
+  removed `time_index` / `time_indices` from the public aggregate API
+  (`beta_samples` shape ``(mc_n_samples, n_edges, T)``).
+- Rename ``GlobalBetaMCResult.beta_draws`` to ``beta_samples`` (aligned with
+  ``mc_n_samples`` and internal ``_sample_*`` helpers).
+- Vote stage builds `ISAggregatedMDMView` directly; the aggregate path no longer
+  converts consensus → view mid-pipeline.
+
 ### Added
 
 - Add `mdmp.group_analysis.inds` subpackage (Individual Structure aggregation).
@@ -49,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplify `aggregate_individual_structures`: inputs are adjacency matrices/DataFrames
   or fitted MDMs only; strict edge voting is fixed; MDM inputs auto-run Monte Carlo
   (`mc_n_samples` default 500) and auto-build pooled `Filt` for `plot_arcs`; removed
-  `threshold_mode`, `time_index` / `time_indices`, `time_series`, `plot_filt` /
+  `threshold_mode`, `time_series`, `plot_filt` /
   `plot_smoo` / `plot_df`, `pool_filt_for_plotting`, `filtered_per_subject`, and
   `data_per_subject` from the public aggregate API (split helpers retain MC/plot knobs).
 - Individual Structure implementation package renamed from `mdmp.group_analysis.is`

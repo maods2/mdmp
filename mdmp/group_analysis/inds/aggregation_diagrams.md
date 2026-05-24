@@ -20,7 +20,7 @@ Before reading the diagrams, keep three distinctions in mind:
 where 𝒜 = subjects whose individual DAG contained edge p→c, A = |𝒜|.
 This estimates E\[θ_{pc,t} | edge_{pc} = 1\], **not** the unconditional population mean (1/S) Σ_i θ_{i,t}^(b).
 
-**Smoothed draws.**
+**Smoothed samples.**
 When `mc_posterior='smoothed'`, the code uses smoothed moments (smt, sCt) together with filtered (nt, dt) at the same time index — a pragmatic approximation, not the exact full smoothing posterior.
 
 Diagramas em [Mermaid](https://mermaid.js.org/). Pré-visualize no GitHub, VS Code (extensão Mermaid), ou [mermaid.live](https://mermaid.live).
@@ -33,9 +33,10 @@ flowchart TD
   C --> VC[validate_coerced]
   VC --> Vote[vote_edge_frequencies]
   Vote --> Repair[repair_dag_to_acyclic]
-  Repair --> Refit{refit on G*?}
-  Refit -->|mc_refit_global_structure| R[refit_on_consensus]
-  Refit -->|skip| MCgate{mc_n_samples > 0?}
+  Repair --> View[ISAggregatedMDMView]
+  View --> Refit{refit on G*?}
+  Refit -->|"None + MDM → auto"| R[refit_on_consensus]
+  Refit -->|False or adj-only| MCgate{mc_n_samples > 0?}
   R --> MCgate
   MCgate -->|yes| MC[run_inds_global_beta_mc]
   MCgate -->|no| Asm[assemble_view]
@@ -147,7 +148,7 @@ flowchart TD
     subgraph samp["Amostragem por sujeito"]
       Si["Para cada sujeito i"]
       Nj["Para cada nó filho c"]
-      Draw["Amostrar estado em t (filtro ou smooth + nt/dt)"]
+      Samp["Amostrar estado em t (filtro ou smooth + nt/dt)"]
     end
 
     subgraph pool["Agregar por aresta global e ∈ E"]
@@ -159,10 +160,9 @@ flowchart TD
   end
 
   subgraph post["Depois das B réplicas"]
-    BD["beta_draws: eixo 0 = b"]
+    BD["beta_samples: eixo 0 = b"]
     MV["beta_mean, beta_var nan-aware no eixo b"]
-    T1["Um t: forma B × |E|"]
-    Tk["time_indices: forma B × |E| × |T|"]
+    Tk["Todos os tempos 0…T-1: forma B × |E| × |T|"]
     Q["mc_quantiles → beta_quantiles ao longo do eixo b"]
   end
 
@@ -195,5 +195,5 @@ flowchart LR
 - Orquestração: `aggregate_individual_structures` em `pipeline.py`
 - Voto + ciclos: `_vote_threshold_and_repair_cycles`, `_remove_lowest_freq_cycle_edge`
 - Refit estrutura fixa: `mdmp.model.refit_mdm_on_structure`
-- MC: `_monte_carlo_global_edge_beta`, `_monte_carlo_beta_draws_at_time`, `_sample_dlm_state_posterior`
+- MC: `_monte_carlo_global_edge_beta`, `_monte_carlo_beta_samples_at_time`, `_sample_dlm_state_posterior`
 - Filt agregado para plots: `build_plot_filt_from_subjects`

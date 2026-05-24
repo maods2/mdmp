@@ -3,7 +3,7 @@
 Statistical note — structural conditioning
 ------------------------------------------
 When ``mc_refit_global_structure=True``, each subject's DLM is refit using the
-consensus DAG G* as a fixed design. All subsequent Monte Carlo draws are then
+consensus DAG G* as a fixed design. All subsequent Monte Carlo samples are then
 conditional on that single fixed structure:
 
     p(θ | G*)
@@ -13,7 +13,7 @@ This is **not** the Bayesian model average over graph uncertainty:
     p(θ) = Σ_G p(θ | G) p(G)
 
 Structural uncertainty is never propagated; the consensus DAG is treated as
-known. Monte Carlo intervals from pooled draws reflect uncertainty in
+known. Monte Carlo intervals from pooled samples reflect uncertainty in
 individual DLM posteriors given G*, not uncertainty about G* itself.
 """
 
@@ -75,7 +75,7 @@ def _refit_each_subject_on_global_adj(
     """Refit MDM filtering on ``global_adj`` for each subject's data array.
 
     Returns ``(refit_filt, refit_smoo, filt_mc)`` where ``filt_mc`` is used for
-    Monte Carlo draws (equal to ``refit_filt``; returned separately for clarity).
+    Monte Carlo samples (equal to ``refit_filt``; returned separately for clarity).
 
     All posteriors are conditional on the fixed consensus DAG G*.
     """
@@ -153,7 +153,7 @@ def build_mc_inputs(
     """Assemble MC inputs after the consensus DAG is fixed.
 
     When ``mc_refit_global_structure=True`` subjects are refit on the fixed
-    consensus DAG G* before draws are taken.  In either path the downstream
+    consensus DAG G* before samples are taken.  In either path the downstream
     Monte Carlo is conditioned on a single fixed DAG (G* or the original
     individual DAGs).
 

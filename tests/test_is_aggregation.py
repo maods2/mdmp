@@ -191,7 +191,7 @@ def test_merge_aggregate_options_matches_flat():
 
 
 def test_run_inds_global_beta_mc_matches_aggregate_mdm():
-    """Split MC path matches aggregate for MDM inputs (time_index fixed at 0 in aggregate)."""
+    """Split MC path matches aggregate for MDM inputs (all filter times)."""
     from types import SimpleNamespace
 
     from mdmp.group_analysis import run_inds_global_beta_mc
@@ -244,7 +244,6 @@ def test_run_inds_global_beta_mc_matches_aggregate_mdm():
         [mdm],
         mc_n_samples=500,
         rng=np.random.default_rng(42),
-        time_index=tix,
     )
     assert split.global_beta_mc is not None
     assert full.global_beta_mc is not None
