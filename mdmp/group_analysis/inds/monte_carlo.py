@@ -2,38 +2,18 @@
 
 Statistical Interpretation
 --------------------------
-**What this module computes.**
-For each global edge (p → c) in the consensus DAG G*, samples from per-subject
-DLM state posteriors are aligned to that edge and pooled across contributing
-subjects.  The resulting empirical distribution over pooled samples summarises:
+For each time :math:`t` and replicate :math:`b = 1,\\ldots,B`, draw
+:math:`\\theta_{it}^{(b)}` from subject :math:`i`'s marginal filtered posterior
+(Student-t via the Gamma–Normal scale mixture), then form the group mean
 
-    E[θ_{pc,t} | edge_{pc} = 1]  (with pooling='conditional_mean_among_edge_subjects')
+    θ̄_t^{(b)} = (1/S) Σ_{i=1}^S θ_{it}^{(b)}
 
-This is the conditional posterior mean among subjects that expressed the edge,
-**not** an unconditional population-average effect.
+The empirical distribution of :math:`\\{\\bar\\theta_t^{(b)}\\}` propagates
+uncertainty through the **average** transform (quantiles / credible summaries).
 
-**What this module does NOT compute.**
-
-* No hierarchical population model is fitted; subjects are sampled
-  **independently** — no shrinkage, no between-subject covariance.
-* Credible intervals from ``beta_samples`` are *not* hierarchical credible
-  intervals from a joint population model.
-* Structural uncertainty is not propagated; inference is p(θ | G*), not the
-  full Bayesian model average p(θ) = Σ_G p(θ|G) p(G).
-
-**Pooling denominator.**
-With ``pooling='conditional_mean_among_edge_subjects'`` (alias:
-``'mean_with_edge'``), the code averages only contributing subjects A at that
-edge.  For ``mc_contributors='individual_edge'``, contributors are subjects
-whose individual DAG had the edge, so the divisor is A ≤ S, not a fixed 1/S
-over all S subjects (missing edges are excluded, not averaged in as zeros).
-With ``mc_contributors='all_subjects'`` after a global refit, typically A = S.
-
-**Smoothed samples.**
-When ``mc_posterior='smoothed'``, samples use smoothed ``(m, C)`` with the
-filter's ``(n_t, d_t)`` at the same time in the Gamma–Normal step — a
-pragmatic reuse of the filtered sampling machinery, not a claim of exact
-posterior sampling from the joint smoothing distribution.
+Requires refit on the consensus DAG G* so every subject contributes a coefficient
+for each global edge.  Inference is conditional on fixed G*; subjects are sampled
+independently (no hierarchical population model).
 """
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -42,18 +22,9 @@ import numpy as np
 
 from ..._node_dispatch import smooth_all_nodes
 from ...utils import build_design_matrix
-from .results import (
-    GlobalBetaMCResult,
-    ISAggregatedMDMView,
-    MCContributorMode,
-    MCPosteriorSource,
-    PoolingMode,
-)
+from .results import GlobalBetaMCResult, ISAggregatedMDMView, MCPosteriorSource
 
-# Pooling modes that implement conditional_mean_among_edge_subjects semantics
-# (old name 'mean_with_edge' is a backward-compatible alias).
-_CONDITIONAL_MEAN_MODES = frozenset({"conditional_mean_among_edge_subjects", "mean_with_edge"})
-_CONDITIONAL_SUM_MODES = frozenset({"conditional_sum_among_edge_subjects", "sum_with_edge"})
+POOLING_POPULATION_MEAN = "population_mean"
 
 
 # ---------------------------------------------------------------------------
@@ -69,21 +40,32 @@ def _sample_dlm_state_posterior(
     gen: np.random.Generator,
 ) -> np.ndarray:
     """
-    Sample one DLM state vector from a Gamma–Normal posterior.
+    Sample one DLM state vector from the marginal Student-t posterior.
+
+    Implements :math:`\\theta \\sim t_{\\nu}(m, C)` via
+    :math:`\\phi \\sim \\mathrm{Gamma}(n_t/2, 2/d_t)` and
+    :math:`\\theta \\mid \\phi \\sim \\mathcal{N}(m, C/\\phi)`.
 
     Parameters
     ----------
-    mt, Ct
-        Posterior mean and covariance at one time index.
-    nt, dt
-        Filter precision hyperparameters (must be positive).
+    mt
+        Posterior mean vector ``m_t`` for one child node's regression
+        coefficients at a single time index, shape ``(p,)``.
+    Ct
+        Posterior covariance matrix ``C_t`` matching ``mt``, shape ``(p, p)``.
+    nt
+        Filtered hyperparameter ``n_t`` (drives the Student-t degrees of
+        freedom) at the same time index; must be positive.
+    dt
+        Filtered hyperparameter ``d_t`` (scale in the Gamma mixing distribution)
+        at the same time index; must be positive.
     gen
-        NumPy random generator.
+        NumPy random generator used for the Gamma and multivariate-normal draws.
 
     Returns
     -------
-    ndarray
-        Sampled regression state vector.
+    np.ndarray
+        One posterior draw of the coefficient vector, shape ``(p,)``.
     """
     m = np.asarray(mt, dtype=float).reshape(-1)
     p = m.shape[0]
@@ -117,23 +99,7 @@ def _align_child_local_to_global(
     local_parent_list: Sequence[int],
     global_parents: Sequence[int],
 ) -> np.ndarray:
-    """
-    Map a child's local regression coefficients to global parent ordering.
-
-    Parameters
-    ----------
-    local_theta
-        Local state vector (intercept + parent effects).
-    local_parent_list
-        Parent node indices in the subject's design matrix.
-    global_parents
-        Target parent ordering on the consensus DAG.
-
-    Returns
-    -------
-    ndarray
-        Aligned parent effects; ``nan`` where a global parent is absent locally.
-    """
+    """Map a child's local regression coefficients to global parent ordering."""
     lt = np.asarray(local_theta, dtype=float).reshape(-1)
     lp = [int(x) for x in local_parent_list]
     gp = [int(x) for x in global_parents]
@@ -153,19 +119,7 @@ def _align_child_local_to_global(
 
 
 def _infer_filter_time_length(filtered: Sequence[Mapping[str, Any]]) -> int:
-    """
-    Infer filter time length ``T`` from the first non-scalar ``mt`` entry.
-
-    Returns
-    -------
-    int
-        Number of time steps in filtered outputs.
-
-    Raises
-    ------
-    ValueError
-        If no suitable ``mt`` array is found.
-    """
+    """Infer filter time length ``T`` from the first non-scalar ``mt`` entry."""
     for filt in filtered:
         mt0 = filt["mt"][0]
         if hasattr(mt0, "shape") and mt0.ndim >= 1:
@@ -179,83 +133,28 @@ def _infer_filter_time_length(filtered: Sequence[Mapping[str, Any]]) -> int:
 
 
 def _build_parent_lists(
-    design_adjs: List[np.ndarray],
-    ss: int,
-    nn: int,
-    t_len: int,
+    subject_adjacency_matrices: List[np.ndarray],
+    n_subjects: int,
+    n_nodes: int,
+    n_times: int,
 ) -> List[List[List[int]]]:
-    """
-    Per-subject parent lists for each child node (for coefficient alignment).
-
-    Uses a dummy data matrix; only the adjacency structure affects parent lists.
-    """
-    dummy_data = np.zeros((t_len, nn), dtype=float)
+    """Per-subject parent lists derived from each subject's design DAG."""
+    dummy_data = np.zeros((n_times, n_nodes), dtype=float)
     parent_lists: List[List[List[int]]] = []
-    for si in range(ss):
+    for si in range(n_subjects):
         pl_si: List[List[int]] = []
-        for c in range(nn):
-            _, pl = build_design_matrix(dummy_data, design_adjs[si], c)
+        for c in range(n_nodes):
+            _, pl = build_design_matrix(dummy_data, subject_adjacency_matrices[si], c)
             pl_si.append(list(pl))
         parent_lists.append(pl_si)
     return parent_lists
 
 
-def _count_contributors_per_edge(
-    edges: List[Tuple[int, int]],
-    adjs_individual: List[np.ndarray],
-    ss: int,
-    mc_contributors: MCContributorMode,
-) -> Tuple[np.ndarray, Dict[Tuple[int, int], int]]:
-    """
-    Count contributing subjects A per consensus edge.
-
-    For ``mc_contributors='individual_edge'``, A is the number of subjects whose
-    individual DAG contains the edge; for ``'all_subjects'``, A = S.
-    """
-    e_ct = len(edges)
-    n_contrib = np.zeros(e_ct, dtype=int)
-    contributors_per_edge: Dict[Tuple[int, int], int] = {}
-    for e, (p, cc) in enumerate(edges):
-        if mc_contributors == "all_subjects":
-            n_contrib[e] = ss
-        else:
-            n_contrib[e] = int(sum(1 for a in adjs_individual if a[p, cc] != 0))
-        contributors_per_edge[(p, cc)] = int(n_contrib[e])
-    return n_contrib, contributors_per_edge
-
-
-def _pooling_semantics_label(pool: PoolingMode) -> str:
-    """Human-readable description of what the pooling mode computes."""
-    if pool in _CONDITIONAL_MEAN_MODES:
-        return (
-            "conditional_mean_E[theta|edge=1]: mean over subjects expressing the "
-            "edge (divisor = n_contributors, not total S subjects); subjects "
-            "without the edge are excluded from both numerator and divisor"
-        )
-    if pool in _CONDITIONAL_SUM_MODES:
-        return (
-            "conditional_sum: sum over subjects expressing the edge; subjects "
-            "without the edge are excluded"
-        )
-    return f"unknown pooling: {pool!r}"
-
-
-def _pool_contributor_values(vals: List[float], pool: PoolingMode) -> float:
-    """
-    Pool finite contributor samples for one edge and one MC replicate.
-
-    Returns
-    -------
-    float
-        Pooled value, or ``nan`` when ``vals`` is empty.
-    """
-    if not vals:
+def _population_mean_over_subjects(vals: List[float], n_subjects: int) -> float:
+    """(1/S) sum_i theta_i for one MC replicate; ``nan`` if any subject is missing."""
+    if len(vals) != n_subjects or not all(np.isfinite(v) for v in vals):
         return np.nan
-    if pool in _CONDITIONAL_MEAN_MODES:
-        return float(sum(vals)) / float(len(vals))
-    if pool in _CONDITIONAL_SUM_MODES:
-        return float(sum(vals))
-    raise ValueError(f"unknown pooling mode: {pool!r}")
+    return float(sum(vals)) / float(n_subjects)
 
 
 def _sample_subject_states_at_time(
@@ -266,11 +165,7 @@ def _sample_subject_states_at_time(
     *,
     smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> List[List[np.ndarray]]:
-    """
-    Sample one MC replicate: all subjects, all child nodes at ``t_index``.
-
-    See the module docstring for the smoothed-sample approximation caveat.
-    """
+    """One MC replicate: sample all subjects, all child nodes at ``t_index``."""
     subject_samples: List[List[np.ndarray]] = []
     for si, filt in enumerate(filtered):
         row: List[np.ndarray] = []
@@ -294,13 +189,12 @@ def _sample_subject_states_at_time(
 
 
 # ---------------------------------------------------------------------------
-# Per-time sample + pool
+# Per-time sample + population mean
 # ---------------------------------------------------------------------------
 
 
 def _monte_carlo_beta_samples_at_time(
     filtered: Sequence[Mapping[str, Any]],
-    adjs_edge_mask: List[np.ndarray],
     edges: List[Tuple[int, int]],
     parent_lists: List[List[List[int]]],
     ss: int,
@@ -308,16 +202,12 @@ def _monte_carlo_beta_samples_at_time(
     t_index: int,
     n_mc: int,
     gen: np.random.Generator,
-    pool: PoolingMode,
     *,
-    mc_contributors: MCContributorMode = "individual_edge",
     smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> np.ndarray:
     """
-    One timestep: for each MC replicate, sample per subject then pool per edge.
-
-    See the module docstring for conditional-mean pooling semantics and the
-    smoothed-sample approximation caveat.
+    One timestep: for each replicate ``b``, sample per subject then
+    ``bar_theta_t^(b) = (1/S) sum_i theta_it^(b)`` per edge.
     """
     e_ct = len(edges)
     beta_samples = np.empty((n_mc, e_ct), dtype=float)
@@ -333,9 +223,6 @@ def _monte_carlo_beta_samples_at_time(
         for e, (p, cc) in enumerate(edges):
             vals: List[float] = []
             for si in range(ss):
-                if mc_contributors == "individual_edge":
-                    if adjs_edge_mask[si][p, cc] == 0:
-                        continue
                 theta = subject_samples[si][cc]
                 aligned = _align_child_local_to_global(
                     theta,
@@ -343,9 +230,11 @@ def _monte_carlo_beta_samples_at_time(
                     [p],
                 )
                 v = aligned[0]
-                if np.isfinite(v):
-                    vals.append(float(v))
-            beta_samples[b, e] = _pool_contributor_values(vals, pool)
+                if not np.isfinite(v):
+                    vals = []
+                    break
+                vals.append(float(v))
+            beta_samples[b, e] = _population_mean_over_subjects(vals, ss)
 
     return beta_samples
 
@@ -356,29 +245,28 @@ def _monte_carlo_beta_samples_at_time(
 
 
 def _build_global_beta_metadata(
-    is_res: ISAggregatedMDMView,
-    ss: int,
+    consensus_view: ISAggregatedMDMView,
+    n_subjects: int,
     mc_posterior: MCPosteriorSource,
-    mc_contributors: MCContributorMode,
-    pool: PoolingMode,
-    contributors_per_edge: Dict[Tuple[int, int], int],
 ) -> Dict[str, Any]:
     """Metadata dict for :class:`GlobalBetaMCResult`."""
     return {
-        "edges_removed_for_acyclicity": is_res.metadata.get("edges_removed_for_acyclicity", []),
-        "n_subjects": ss,
+        "edges_removed_for_acyclicity": consensus_view.metadata.get(
+            "edges_removed_for_acyclicity", []
+        ),
+        "n_subjects": n_subjects,
         "mc_posterior": mc_posterior,
-        "mc_contributors": mc_contributors,
         "conditioning": "fixed_consensus_dag",
-        "pooling_semantics": _pooling_semantics_label(pool),
-        "contributors_per_edge": contributors_per_edge,
+        "pooling_semantics": (
+            "population_mean: bar_theta_t^(b) = (1/S) sum_i theta_it^(b); "
+            "Monte Carlo over B replicates propagates uncertainty through the mean"
+        ),
     }
 
 
 def _empty_global_beta_result(
     n_mc: int,
     t_len: int,
-    pool: PoolingMode,
     base_meta: Dict[str, Any],
 ) -> GlobalBetaMCResult:
     """Return a zero-edge :class:`GlobalBetaMCResult` with consistent metadata."""
@@ -389,7 +277,7 @@ def _empty_global_beta_result(
         edges=[],
         n_contributors=np.zeros(0, dtype=int),
         time_index=0,
-        pooling=pool,
+        pooling=POOLING_POPULATION_MEAN,
         metadata=base_meta,
         time_indices_mc=tuple(t_list),
         beta_mean=np.empty((0, t_len), dtype=float),
@@ -401,13 +289,7 @@ def _summarize_beta_samples(
     beta_samples: np.ndarray,
     mc_quantiles: Optional[Sequence[float]],
 ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[Tuple[float, ...]]]:
-    """
-    Compute mean, variance, and optional quantiles along the MC axis.
-
-    Returns
-    -------
-    beta_mean, beta_var, beta_quantiles, quantile_levels
-    """
+    """Mean, variance, and optional quantiles along the MC axis."""
     beta_mean = np.nanmean(beta_samples, axis=0)
     beta_var = np.nanvar(beta_samples, axis=0)
     beta_q: Optional[np.ndarray] = None
@@ -426,77 +308,103 @@ def _summarize_beta_samples(
 
 
 def _monte_carlo_global_edge_beta(
-    filtered: Sequence[Mapping[str, Any]],
-    adjs_individual: List[np.ndarray],
-    design_adjs: List[np.ndarray],
-    is_res: ISAggregatedMDMView,
-    n_mc: int,
-    gen: np.random.Generator,
-    pool: PoolingMode,
+    posterior_per_subject: Sequence[Mapping[str, Any]],
+    subject_adjacency_matrices: List[np.ndarray],
+    consensus_view: ISAggregatedMDMView,
+    mc_n_samples: int,
+    rng: np.random.Generator,
     *,
     mc_quantiles: Optional[Sequence[float]] = None,
-    mc_contributors: MCContributorMode = "individual_edge",
     mc_posterior: MCPosteriorSource = "filtered",
     smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> GlobalBetaMCResult:
     """
-    Monte Carlo over DLM posteriors + conditional pooling on the **consensus** DAG.
+    Monte Carlo global edge coefficients conditional on the consensus DAG G*.
 
-    Samples are computed at **every** filter time index ``t = 0, …, T-1`` inferred
-    from ``filtered``.  ``beta_samples`` has shape ``(B, n_edges, T)``.
+    For each filter time ``t ∈ {0, …, T-1}`` and replicate ``b = 1, …, B``,
+    draw ``θ_{it}^{(b)}`` from each subject's marginal posterior, form the
+    population mean ``θ̄_t^{(b)} = (1/S) Σ_i θ_{it}^{(b)}`` on each global edge,
+    and summarize the empirical distribution over ``b``.
+
+    Parameters
+    ----------
+    posterior_per_subject
+        Length-``S`` sequence of per-subject filtered DLM outputs (dicts with
+        ``mt``, ``Ct``, ``nt``, ``dt`` keyed by child node index).  After refit
+        on G*, these are the posteriors used for sampling.
+    subject_adjacency_matrices
+        Length-``S`` list of ``N×N`` binary adjacency matrices—one per
+        subject—defining local parent sets when mapping regression coefficients
+        onto global edges.  With refit on the consensus DAG, entries are
+        typically identical copies of ``consensus_view.adj_mat``.
+    consensus_view
+        :class:`~mdmp.group_analysis.inds.results.ISAggregatedMDMView` whose
+        ``adj_mat`` is the fixed global DAG G*.  Directed edges in this matrix
+        are the Monte Carlo targets.
+    mc_n_samples
+        Number of Monte Carlo replicates ``B`` (first axis of ``beta_samples``).
+    rng
+        NumPy random generator used for Student-t posterior draws.
+    mc_quantiles
+        Optional quantile levels in ``(0, 1)``; when set, ``beta_quantiles`` is
+        computed along the replicate axis.
+    mc_posterior
+        ``"filtered"`` samples from filtered moments ``(mt, Ct)``;
+        ``"smoothed"`` uses ``(smt, sCt)`` with ``nt``/``dt`` from the filter
+        at the same time index.
+    smoothed_per_subject
+        Required when ``mc_posterior="smoothed"``: length-``S`` smoothed-output
+        dicts (``smt``, ``sCt`` per child) aligned with ``posterior_per_subject``.
+
+    Returns
+    -------
+    GlobalBetaMCResult
+        ``beta_samples`` with shape ``(B, n_edges, T)``, plus ``beta_mean``,
+        ``beta_var``, and optional ``beta_quantiles``.
     """
-    if n_mc < 1:
+    if mc_n_samples < 1:
         raise ValueError("mc_n_samples must be at least 1")
-    ss = len(filtered)
-    if ss == 0:
-        raise ValueError("filtered_per_subject must be non-empty")
-    if len(adjs_individual) != ss:
+    n_subjects = len(posterior_per_subject)
+    if n_subjects == 0:
+        raise ValueError("posterior_per_subject must be non-empty")
+    if len(subject_adjacency_matrices) != n_subjects:
         raise ValueError(
-            f"adjacency list length {len(adjs_individual)} != filtered_per_subject length {ss}"
-        )
-    if len(design_adjs) != ss:
-        raise ValueError(
-            f"design_adjs length {len(design_adjs)} != filtered_per_subject length {ss}"
+            f"subject_adjacency_matrices length {len(subject_adjacency_matrices)} "
+            f"!= posterior_per_subject length {n_subjects}"
         )
 
-    t_len = _infer_filter_time_length(filtered)
-    t_list = list(range(t_len))
+    n_times = _infer_filter_time_length(posterior_per_subject)
+    time_indices = list(range(n_times))
 
-    global_adj = np.asarray(is_res.adj_mat, dtype=int)
-    nn = global_adj.shape[0]
+    global_adj = np.asarray(consensus_view.adj_mat, dtype=int)
+    n_nodes = global_adj.shape[0]
     edges = _global_dag_edges(global_adj)
 
-    n_contrib, contributors_per_edge = _count_contributors_per_edge(
-        edges, adjs_individual, ss, mc_contributors
-    )
-    base_meta = _build_global_beta_metadata(
-        is_res, ss, mc_posterior, mc_contributors, pool, contributors_per_edge
-    )
+    base_meta = _build_global_beta_metadata(consensus_view, n_subjects, mc_posterior)
 
     if len(edges) == 0:
-        return _empty_global_beta_result(n_mc, t_len, pool, base_meta)
+        return _empty_global_beta_result(mc_n_samples, n_times, base_meta)
 
-    parent_lists = _build_parent_lists(design_adjs, ss, nn, t_len)
+    parent_lists = _build_parent_lists(
+        subject_adjacency_matrices, n_subjects, n_nodes, n_times
+    )
 
     if mc_posterior == "smoothed" and smoothed_per_subject is None:
         raise ValueError("smoothed_per_subject is required when mc_posterior='smoothed'")
 
     blocks = [
         _monte_carlo_beta_samples_at_time(
-            filtered,
-            adjs_individual,
+            posterior_per_subject,
             edges,
             parent_lists,
-            ss,
-            nn,
+            n_subjects,
+            n_nodes,
             tix,
-            n_mc,
-            gen,
-            pool,
-            mc_contributors=mc_contributors,
+            mc_n_samples,
+            rng,
             smoothed_per_subject=smoothed_per_subject,
         )
-        for tix in t_list
+        for tix in time_indices
     ]
     beta_samples = np.stack(blocks, axis=2)
 
@@ -505,11 +413,11 @@ def _monte_carlo_global_edge_beta(
     return GlobalBetaMCResult(
         beta_samples=beta_samples,
         edges=edges,
-        n_contributors=n_contrib,
+        n_contributors=np.full(len(edges), n_subjects, dtype=int),
         time_index=0,
-        pooling=pool,
+        pooling=POOLING_POPULATION_MEAN,
         metadata=base_meta,
-        time_indices_mc=tuple(t_list),
+        time_indices_mc=tuple(time_indices),
         beta_quantiles=beta_q,
         quantile_levels=q_tuple,
         beta_mean=beta_mean,

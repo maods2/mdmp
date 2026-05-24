@@ -10,17 +10,12 @@ The objects in this module represent outputs of a two-stage pipeline:
 
 Key distinctions to keep in mind:
 
-* **Conditional edge effects, not population averages.**  The default pooling
-  averages only subjects that express each edge, estimating
+* **Population mean over subjects.**  For each MC replicate :math:`b`,
 
-      E[θ_{pc,t} | edge_{pc} = 1]
+      \\bar{\\theta}_t^{(b)} = \\frac{1}{S}\\sum_{i=1}^{S} \\theta_{it}^{(b)}
 
-  *not* the unconditional population mean
-
-      E[θ_{pc,t}] = (1/S) Σ_i θ_{i,pc,t}.
-
-  Subjects without the edge are excluded from both the numerator and the
-  divisor (they do not enter as zeros).
+  with :math:`\\theta_{it}^{(b)}` drawn from each subject's marginal posterior at
+  time :math:`t` (after refit on the consensus DAG G*).
 
 * **Fixed-structure inference.**  All posterior samples are conditioned on G*:
 
@@ -42,18 +37,7 @@ import numpy as np
 
 from .voting import ThresholdMode
 
-MCContributorMode = Literal["individual_edge", "all_subjects"]
 MCPosteriorSource = Literal["filtered", "smoothed"]
-
-# Canonical pooling mode names that make the conditional semantics explicit.
-# The old names ("mean_with_edge", "sum_with_edge") are retained as
-# backward-compatible aliases and continue to behave identically.
-PoolingMode = Literal[
-    "conditional_mean_among_edge_subjects",   # canonical name
-    "conditional_sum_among_edge_subjects",    # canonical name
-    "mean_with_edge",                         # backward-compatible alias
-    "sum_with_edge",                          # backward-compatible alias
-]
 
 
 @dataclass
@@ -70,14 +54,11 @@ class GlobalBetaMCResult:
 
     * Samples are taken **independently** across subjects (no joint hierarchical
       model, no shrinkage, no between-subject covariance structure).
-    * Pooling with ``pooling='conditional_mean_among_edge_subjects'`` (or its
-      backward-compatible alias ``'mean_with_edge'``) estimates:
+    * For each replicate :math:`b` and time :math:`t`,
 
-          E[θ_{pc,t} | edge_{pc} = 1]
+          \\bar{\\theta}_t^{(b)} = \\frac{1}{S}\\sum_{i=1}^{S} \\theta_{it}^{(b)}
 
-      This is the conditional posterior mean among subjects that expressed the
-      edge, **not** an unconditional population average (absent subjects are
-      omitted, not averaged in as zeros).
+      with :math:`\\theta_{it}^{(b)}` from each subject's marginal filtered posterior.
 
     **What these intervals do NOT represent.**
 
@@ -100,18 +81,7 @@ class GlobalBetaMCResult:
            not an exact sample from the joint smoothing distribution.
 
     2. For each global edge (p → c), align the local coefficient for parent p
-       in each contributing subject and pool.  With
-       ``pooling='conditional_mean_among_edge_subjects'``:
-
-       .. math::
-           \\bar{\\theta}_t^{(b)} =
-               \\frac{1}{A}\\sum_{i \\in \\mathcal{A}} \\theta_{i,t}^{(b)}
-
-       where :math:`\\mathcal{A}` is the contributor set and :math:`A =
-       |\\mathcal{A}|`.  For ``mc_contributors='individual_edge'``,
-       :math:`\\mathcal{A}` = subjects whose **individual** DAG contained that
-       edge; :math:`A \\le S`.  For ``mc_contributors='all_subjects'`` after
-       global refit, typically :math:`A = S`.
+       and form the population mean at each replicate (divisor :math:`S`).
 
     3. Columns of ``beta_samples`` (and optional quantile / nan-mean summaries)
        are the empirical distribution of
@@ -124,20 +94,15 @@ class GlobalBetaMCResult:
     edges : list of tuple
         ``(parent_idx, child_idx)`` in the same column order as ``beta_samples``.
     n_contributors : np.ndarray
-        Per-edge count :math:`A` of subjects that entered the mean or sum for
-        that edge.
+        Per-edge subject count :math:`S` (always the total number of subjects).
     time_index : int
         Always ``0`` (legacy field; use ``time_indices_mc`` for the full index
         range ``0 … T-1``).
     pooling : str
-        Pooling policy label (``'conditional_mean_among_edge_subjects'`` or
-        ``'conditional_sum_among_edge_subjects'``; legacy names
-        ``'mean_with_edge'`` / ``'sum_with_edge'`` are identical in effect).
+        Always ``'population_mean'``.
     metadata : dict
-        Extra diagnostics including ``n_subjects``, ``mc_posterior``,
-        ``mc_contributors``, ``pooling_semantics`` (human-readable description
-        of what the pooling computes), and ``contributors_per_edge`` (mapping
-        ``(parent_idx, child_idx)`` → contributor count).
+        Extra diagnostics including ``n_subjects``, ``mc_posterior``, and
+        ``pooling_semantics``.
     time_indices_mc : tuple of int
         Time indices ``(0, 1, …, T-1)`` aligned with the last axis of ``beta_samples``.
     beta_quantiles : np.ndarray, optional
@@ -284,14 +249,9 @@ class ISAggregateOptions:
     """
     Bundles keyword-only arguments for :func:`aggregate_individual_structures`.
 
-    Only :class:`ISAggregateOptions` fields are optional configuration; the
-    graph list and ``tau`` stay on :func:`aggregate_with_options` and
-    :func:`aggregate_individual_structures`.  Defaults match the latter.
-
-    The ``pooling`` field accepts the canonical conditional names
-    ``'conditional_mean_among_edge_subjects'`` and
-    ``'conditional_sum_among_edge_subjects'``, as well as the legacy aliases
-    ``'mean_with_edge'`` and ``'sum_with_edge'`` (identical behaviour).
+    Mirrors keyword-only arguments of
+    :func:`~mdmp.group_analysis.inds.pipeline.aggregate_individual_structures`
+    (not exported from the public package API).
 
     ``mc_refit_global_structure=None`` selects auto mode: refit on G* for
     MDM-like inputs, individual filtered posteriors otherwise.
@@ -299,10 +259,8 @@ class ISAggregateOptions:
 
     mc_n_samples: int = 500
     rng: Optional[Any] = None
-    pooling: PoolingMode = "mean_with_edge"
     mc_quantiles: Optional[Sequence[float]] = None
     mc_posterior: MCPosteriorSource = "filtered"
-    mc_contributors: MCContributorMode = "individual_edge"
     mc_refit_global_structure: Optional[bool] = None
     mc_refit_n_jobs: Optional[int] = None
 
@@ -318,13 +276,11 @@ class ISVoteOptions:
 class ISMonteCarloOptions:
     """Monte Carlo / refit options (global edge posterior given G*)."""
 
-    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
+    posterior_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
     mc_n_samples: int = 0
     rng: Optional[Any] = None
-    pooling: PoolingMode = "mean_with_edge"
     mc_quantiles: Optional[Sequence[float]] = None
     mc_posterior: MCPosteriorSource = "filtered"
-    mc_contributors: MCContributorMode = "individual_edge"
     mc_refit_global_structure: Optional[bool] = None
     data_per_subject: Optional[Sequence[np.ndarray]] = None
     mc_refit_n_jobs: Optional[int] = None
@@ -339,7 +295,7 @@ class ISMDMViewOptions:
     plot_smoo: Optional[Mapping[str, Any]] = None
     plot_df: Optional[Mapping[str, Any]] = None
     pool_filt_for_plotting: bool = False
-    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
+    posterior_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
 
 
 def merge_aggregate_options(
@@ -360,10 +316,8 @@ def merge_aggregate_options(
         for field_name in (
             "mc_n_samples",
             "rng",
-            "pooling",
             "mc_quantiles",
             "mc_posterior",
-            "mc_contributors",
             "mc_refit_global_structure",
             "mc_refit_n_jobs",
         ):

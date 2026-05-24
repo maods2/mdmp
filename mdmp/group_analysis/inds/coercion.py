@@ -21,7 +21,7 @@ class _PreparedSubjects:
     names: List[str]
     n_subjects: int
     n_nodes: int
-    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]]
+    posterior_per_subject: Optional[Sequence[Mapping[str, Any]]]
     time_series: Optional[np.ndarray]
     mdm_data_per_subject: Optional[List[np.ndarray]]
 
@@ -147,7 +147,7 @@ def _materialize_subjects_list(subjects: Sequence[Any]) -> List[Any]:
 def _coerce_subjects_for_aggregation(
     subjects: Sequence[Any],
     node_names: Optional[Sequence[str]],
-    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]],
+    posterior_per_subject: Optional[Sequence[Mapping[str, Any]]],
 ) -> Tuple[
     Sequence[Union[np.ndarray, pd.DataFrame]],
     Optional[Sequence[str]],
@@ -157,10 +157,10 @@ def _coerce_subjects_for_aggregation(
 ]:
     """
     If ``subjects`` are MDM-like, build adjacency list and fill
-    ``filtered_per_subject`` / mean ``time_series`` from each model.
+    ``posterior_per_subject`` / mean ``time_series`` from each model.
 
-    ``filtered_per_subject`` is only accepted on split APIs (e.g.
-    :func:`run_inds_global_beta_mc`); :func:`aggregate_individual_structures`
+    ``posterior_per_subject`` is only accepted on split APIs (e.g.
+    :func:`aggregate_individual_structures`
     derives filters from MDMs only.
 
     Returns adjacency list, node names, **resolved** filtered states,
@@ -171,7 +171,7 @@ def _coerce_subjects_for_aggregation(
 
     kind = _subject_sequence_kind(subjects_list)
     if kind == "adj":
-        return subjects_list, node_names, filtered_per_subject, None, None
+        return subjects_list, node_names, posterior_per_subject, None, None
 
     mdms: List[Any] = subjects_list
     names_ref = [str(x) for x in mdms[0].node_names]
@@ -195,8 +195,8 @@ def _coerce_subjects_for_aggregation(
         np.fill_diagonal(b, 0)
         adjs.append(b)
 
-    resolved_filtered = (
-        filtered_per_subject if filtered_per_subject is not None else [m.Filt for m in mdms]
+    resolved_posterior = (
+        posterior_per_subject if posterior_per_subject is not None else [m.Filt for m in mdms]
     )
 
     datas = [np.asarray(m.data, dtype=float) for m in mdms]
@@ -210,7 +210,7 @@ def _coerce_subjects_for_aggregation(
     return (
         adjs,
         node_names if node_names is not None else names_ref,
-        resolved_filtered,
+        resolved_posterior,
         resolved_time_series,
         data_per_subject,
     )

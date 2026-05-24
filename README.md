@@ -618,36 +618,16 @@ model = MDM(result.vts_data, method="hc")
 Implementation lives under `mdmp.group_analysis.inds`.
 
 ```python
-from mdmp import (
-    aggregate_individual_structures,
-    plot_arcs,
-    plot_dag,
-    run_inds_global_beta_mc,
-    vote_individual_structures,
-)
+from mdmp import aggregate_individual_structures, plot_arcs, plot_dag
 
-# 1) Consensus DAG only
-consensus = vote_individual_structures(list_of_adj_mats, tau=0.5)
-fig = plot_dag(consensus)
-
-# 2) Global edge posterior (Monte Carlo on G*; refit on G* recommended when you have subject data)
-import numpy as np
-rng = np.random.default_rng(0)
-result = run_inds_global_beta_mc(
-    consensus,
-    list_of_adj_mats,
-    mc_n_samples=500,
-    rng=rng,
-    filtered_per_subject=list_of_filt_dicts,
-    mc_refit_global_structure=True,
-    data_per_subject=list_of_subject_arrays,
-)
-# result.global_beta_mc — inferential edge coefficients; not the same as pooled Filt for plot_arcs
-
-# 3) All-in-one: adjacency-only → consensus DAG; MDMs → DAG + MC + pooled Filt for plot_arcs
+# Adjacency-only → consensus DAG (no Monte Carlo, no pooled Filt)
 result = aggregate_individual_structures(list_of_adj_mats, tau=0.5, mc_n_samples=0)
+fig = plot_dag(result)
+
+# Fitted MDMs → consensus DAG + Monte Carlo on G* + pooled Filt for plot_arcs
 result = aggregate_individual_structures(list_of_mdm_models, tau=0.5)
 fig2 = plot_arcs(result, plot_type="connections")
+# result.global_beta_mc — inferential edge coefficients; not the same as pooled Filt
 ```
 
 See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/05-is-aggregation.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).

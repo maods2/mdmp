@@ -11,7 +11,7 @@ from .coercion import _to_binary_adj
 
 def build_plot_filt_from_subjects(
     global_adj: np.ndarray,
-    filtered_per_subject: Sequence[Mapping[str, Any]],
+    posterior_per_subject: Sequence[Mapping[str, Any]],
     adj_per_subject: Sequence[Union[np.ndarray, pd.DataFrame]],
     node_names: Sequence[str],
 ) -> Dict[str, Any]:
@@ -45,13 +45,13 @@ def build_plot_filt_from_subjects(
             f"global_adj shape {ga.shape} must match subject adjacencies {arrays[0].shape}"
         )
 
-    s_sub = len(filtered_per_subject)
+    s_sub = len(posterior_per_subject)
     if len(arrays) != s_sub:
         raise ValueError(
-            f"adj_per_subject length {len(arrays)} must match filtered_per_subject length {s_sub}"
+            f"adj_per_subject length {len(arrays)} must match posterior_per_subject length {s_sub}"
         )
 
-    T = int(np.asarray(filtered_per_subject[0]["mt"][0]).shape[-1])
+    T = int(np.asarray(posterior_per_subject[0]["mt"][0]).shape[-1])
     dummy = np.zeros((T, n), dtype=float)
     str_names: List[str] = [str(x) for x in node_names]
     if len(str_names) != n:
@@ -73,15 +73,15 @@ def build_plot_filt_from_subjects(
 
         for t in range(T):
             n_vec[t] = float(
-                np.mean([float(f["nt"][c][t]) for f in filtered_per_subject])
+                np.mean([float(f["nt"][c][t]) for f in posterior_per_subject])
             )
             d_vec[t] = float(
-                np.mean([float(f["dt"][c][t]) for f in filtered_per_subject])
+                np.mean([float(f["dt"][c][t]) for f in posterior_per_subject])
             )
             for j in range(p):
                 mvals: List[float] = []
                 cvals: List[float] = []
-                for si, filt in enumerate(filtered_per_subject):
+                for si, filt in enumerate(posterior_per_subject):
                     adj_s = arrays[si]
                     _, pl_s = build_design_matrix(dummy, adj_s, c)
                     mt_s = np.asarray(filt["mt"][c], dtype=float)

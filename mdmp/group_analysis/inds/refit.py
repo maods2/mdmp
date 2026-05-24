@@ -145,7 +145,7 @@ def build_mc_inputs(
     n_subjects: int,
     n_nodes: int,
     out_adj: np.ndarray,
-    resolved_filtered_per_subject: Optional[Sequence[Mapping[str, Any]]],
+    resolved_posterior_per_subject: Optional[Sequence[Mapping[str, Any]]],
     mdm_data_per_subject: Optional[List[np.ndarray]],
     data_per_subject: Optional[Sequence[np.ndarray]],
     mc_refit_n_jobs: Optional[int],
@@ -175,8 +175,8 @@ def build_mc_inputs(
         smoo_seq = refit_smoo if mc_posterior == "smoothed" else None
         return _MCInputs(filt_mc, design, smoo_seq, refit_filt, refit_smoo)
 
-    assert resolved_filtered_per_subject is not None
-    filt_mc = list(resolved_filtered_per_subject)
+    assert resolved_posterior_per_subject is not None
+    filt_mc = list(resolved_posterior_per_subject)
     smoo_seq = (
         _smooth_filtered_sequence(filt_mc, mc_refit_n_jobs)
         if mc_posterior == "smoothed"

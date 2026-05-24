@@ -30,6 +30,6 @@ def require_smoo_for_plot(obj: object) -> object:
     if sm is None:
         raise TypeError(
             "This plot requires smoothed output (model.Smoo). Use a fitted "
-            "mdmp.model.MDM, or attach Smoo via as_inds_mdm_view."
+            "mdmp.model.MDM, or pass fitted MDMs to aggregate_individual_structures."
         )
     return sm

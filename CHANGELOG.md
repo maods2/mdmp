@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Remove split IS entry points: `vote_individual_structures`,
+  `run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`,
+  `aggregate_with_options`, and `refit_on_consensus` from the public API.
+  Use `aggregate_individual_structures` only.
+
 ### Changed
 
 - `aggregate_individual_structures`: `mc_refit_global_structure=None` (default) refits
@@ -17,8 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`beta_samples` shape ``(mc_n_samples, n_edges, T)``).
 - Rename ``GlobalBetaMCResult.beta_draws`` to ``beta_samples`` (aligned with
   ``mc_n_samples`` and internal ``_sample_*`` helpers).
+- Monte Carlo uses only population-mean pooling
+  (:math:`\\bar\\theta_t^{(b)} = \\frac{1}{S}\\sum_i \\theta_{it}^{(b)}` per
+  replicate); removed ``pooling``, ``mc_contributors``, and conditional
+  ``mean_with_edge`` / ``sum_with_edge`` modes.
 - Vote stage builds `ISAggregatedMDMView` directly; the aggregate path no longer
   converts consensus → view mid-pipeline.
+- Rename internal ``filtered_per_subject`` to ``posterior_per_subject`` (and
+  ``resolved_filtered_*`` to ``resolved_posterior_*``) across IS coercion, MC, and
+  plot-pooling helpers.
 
 ### Added
 
@@ -63,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or fitted MDMs only; strict edge voting is fixed; MDM inputs auto-run Monte Carlo
   (`mc_n_samples` default 500) and auto-build pooled `Filt` for `plot_arcs`; removed
   `threshold_mode`, `time_series`, `plot_filt` /
-  `plot_smoo` / `plot_df`, `pool_filt_for_plotting`, `filtered_per_subject`, and
+  `plot_smoo` / `plot_df`, `pool_filt_for_plotting`, `posterior_per_subject`, and
   `data_per_subject` from the public aggregate API (split helpers retain MC/plot knobs).
 - Individual Structure implementation package renamed from `mdmp.group_analysis.is`
   to `mdmp.group_analysis.inds` (the `is` import path is removed).
@@ -73,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename aggregation keyword `plot_data` to `time_series` (multivariate ``(T, N)``
   series on the consensus view, stored as ``ISAggregatedMDMView.data``).
 - Clarify internal naming: post-coercion values use ``resolved_*`` (e.g.
-  ``resolved_filtered_per_subject``, ``resolved_time_series``) instead of ``*_eff``.
+  ``resolved_posterior_per_subject``, ``resolved_time_series``) instead of ``*_eff``.
 - Replace structure-learning algorithm registry with a static `METHODS` map in
   `mdmp.structure.learner`; remove `register_algorithm`, `get_algorithm`, and
   `list_algorithms` from the public API.

@@ -35,16 +35,15 @@ flowchart TD
   Vote --> Repair[repair_dag_to_acyclic]
   Repair --> View[ISAggregatedMDMView]
   View --> Refit{refit on G*?}
-  Refit -->|"None + MDM → auto"| R[refit_on_consensus]
+  Refit -->|"None + MDM → auto"| R[build_mc_inputs / refit]
   Refit -->|False or adj-only| MCgate{mc_n_samples > 0?}
   R --> MCgate
-  MCgate -->|yes| MC[run_inds_global_beta_mc]
-  MCgate -->|no| Asm[assemble_view]
-  MC --> Asm
+  MCgate -->|yes| MC[_monte_carlo_global_edge_beta]
+  MCgate -->|no| Filt[_finalize_mdm_view]
+  MC --> Filt
 ```
 
-Split entry points: `vote_individual_structures`, `refit_on_consensus`,
-`run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`.
+Public API: `aggregate_individual_structures` only.
 
 ## 2. Visão geral: `aggregate_individual_structures`
 

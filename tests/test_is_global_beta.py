@@ -18,20 +18,44 @@ from mdmp.group_analysis import (
     ISAggregatedMDMView,
     ISAggregationResult,
     aggregate_individual_structures,
-    run_inds_global_beta_mc,
-    vote_individual_structures,
 )
 
 
-def _mc_aggregate(adjs, filt, *, tau: float = 0.5, **kwargs):
-    """Run MC via split API (adjacency + manual filt)."""
-    consensus = vote_individual_structures(adjs, tau=tau)
-    return run_inds_global_beta_mc(
-        consensus,
-        adjs,
-        filtered_per_subject=filt,
-        **kwargs,
-    )
+def _mc_aggregate(adjs, filt, *, tau: float = 0.5, T: int = 5, n_nodes: int = 2, **kwargs):
+    """Run MC via aggregate_individual_structures with mocked refit on G*."""
+    filt_list = list(filt)
+    call_idx = [0]
+    node_names = kwargs.pop("node_names", None) or [f"n{i}" for i in range(n_nodes)]
+
+    def _fake_refit(data, adj_mat, **kw):
+        i = call_idx[0]
+        call_idx[0] += 1
+        filt_i = _add_rt_to_filt(filt_list[i])
+        smoo = {
+            "smt": {c: np.asarray(filt_i["mt"][c]) for c in filt_i["mt"]},
+            "sCt": {c: np.asarray(filt_i["Ct"][c]) for c in filt_i["Ct"]},
+        }
+        return SimpleNamespace(Filt=filt_i, Smoo=smoo)
+
+    subjects = [
+        _mdm_like(
+            adj_mat=np.asarray(adj, dtype=int),
+            Filt=filt_list[i],
+            node_names=list(node_names),
+            data=np.zeros((T, n_nodes), dtype=float),
+        )
+        for i, adj in enumerate(adjs)
+    ]
+    with patch(
+        "mdmp.group_analysis.inds.refit.refit_mdm_on_structure",
+        side_effect=_fake_refit,
+    ):
+        return aggregate_individual_structures(
+            subjects,
+            tau=tau,
+            mc_refit_global_structure=True,
+            **kwargs,
+        )
 
 
 def test_aggregate_global_beta_mc_none_for_adj_only():
@@ -80,7 +104,7 @@ def test_aggregate_global_beta_posterior_mean_approximation():
         [filt],
         mc_n_samples=12_000,
         rng=rng,
-        pooling="mean_with_edge",
+        T=T,
     )
     assert r.global_beta_mc is not None
     gb = r.global_beta_mc
@@ -133,11 +157,11 @@ def _synth_filtered_n2_t5(
     return [one_filt(b0), one_filt(b1), one_filt(b2)]
 
 
-def test_aggregate_global_beta_mean_with_edge():
+def test_aggregate_global_beta_population_mean():
+    """bar_theta^(b) = (1/S) sum_i theta_i^(b) with S subjects on consensus DAG."""
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    no01 = np.array([[0, 0], [0, 0]], dtype=int)
-    adjs = [e01.copy(), e01.copy(), no01.copy()]
-    filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
+    adjs = [e01.copy(), e01.copy()]
+    filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))[:2]
     rng = np.random.default_rng(42)
     tix = 2
     r = _mc_aggregate(
@@ -145,12 +169,12 @@ def test_aggregate_global_beta_mean_with_edge():
         filt,
         mc_n_samples=200,
         rng=rng,
-        pooling="mean_with_edge",
     )
     assert r.global_beta_mc is not None
     out = r.global_beta_mc
     assert isinstance(out, GlobalBetaMCResult)
     assert out.edges == [(0, 1)]
+    assert out.pooling == "population_mean"
     assert out.n_contributors[0] == 2
     assert np.nanmean(out.beta_samples[:, 0, tix]) == pytest.approx(3.0, abs=0.05)
 
@@ -183,7 +207,7 @@ def test_aggregate_global_beta_pooled_samples_wider_with_heterogeneous_subject_v
     hom = [filt_child1(tight), filt_child1(tight)]
     het = [filt_child1(tight), filt_child1(4.0)]
     n_mc = 12_000
-    kw = {"mc_n_samples": n_mc, "pooling": "mean_with_edge"}
+    kw = {"mc_n_samples": n_mc}
     r_hom = _mc_aggregate(
         [e01, e01],
         hom,
@@ -205,28 +229,10 @@ def test_aggregate_global_beta_pooled_samples_wider_with_heterogeneous_subject_v
     assert v_het > v_hom * 8.0
 
 
-def test_aggregate_global_beta_sum_with_edge():
-    e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    adjs = [e01.copy(), e01.copy()]
-    filt = _synth_filtered_n2_t5((1.0, 3.0, 0.0))[:2]
-    rng = np.random.default_rng(7)
-    tix = 2
-    r = _mc_aggregate(
-        adjs,
-        filt,
-        mc_n_samples=100,
-        rng=rng,
-        pooling="sum_with_edge",
-    )
-    out = r.global_beta_mc
-    assert out is not None
-    assert np.nanmean(out.beta_samples[:, 0, tix]) == pytest.approx(4.0, abs=0.05)
-
-
 def test_aggregate_global_beta_rng_determinism():
     adjs = [np.array([[0, 1], [0, 0]], dtype=int)]
     filt = _synth_filtered_n2_t5((1.5, 0.0, 0.0))[:1]
-    kw = {"mc_n_samples": 5, "pooling": "mean_with_edge"}
+    kw = {"mc_n_samples": 5}
     a = _mc_aggregate(adjs, filt, rng=np.random.default_rng(123), **kw)
     b = _mc_aggregate(adjs, filt, rng=np.random.default_rng(123), **kw)
     assert np.allclose(a.global_beta_mc.beta_samples, b.global_beta_mc.beta_samples)
@@ -298,21 +304,27 @@ def test_aggregate_global_beta_smoothed_posterior():
     assert np.all(np.isfinite(gb.beta_samples[:, 0, 2]))
 
 
-def test_mc_contributors_all_subjects_requires_refit():
+def test_mc_requires_refit_on_consensus():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))[:1]
+    m = _mdm_like(
+        adj_mat=e01,
+        Filt=filt[0],
+        node_names=["a", "b"],
+        data=np.zeros((5, 2)),
+    )
     with pytest.raises(ValueError, match="mc_refit_global_structure"):
-        _mc_aggregate(
-            [e01],
-            filt,
+        aggregate_individual_structures(
+            [m],
+            tau=0.5,
             mc_n_samples=5,
             rng=np.random.default_rng(0),
-            mc_contributors="all_subjects",
+            mc_refit_global_structure=False,
         )
 
 
 @patch("mdmp.group_analysis.inds.refit.refit_mdm_on_structure")
-def test_mc_all_subjects_after_mock_refit(mock_refit):
+def test_mdm_aggregate_population_mean_after_refit(mock_refit):
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     shared = _add_rt_to_filt(_synth_filtered_n2_t5((3.0, 3.0, 3.0))[0])
 
@@ -322,19 +334,20 @@ def test_mc_all_subjects_after_mock_refit(mock_refit):
     mock_refit.side_effect = _fake
     T, n = 5, 2
     rng = np.random.default_rng(99)
-    consensus = vote_individual_structures([e01.copy(), e01.copy()], tau=0.5)
-    r = run_inds_global_beta_mc(
-        consensus,
-        [e01.copy(), e01.copy()],
+    subjects = [
+        _mdm_like(adj_mat=e01.copy(), Filt=shared, node_names=["a", "b"], data=np.zeros((T, n))),
+        _mdm_like(adj_mat=e01.copy(), Filt=shared, node_names=["a", "b"], data=np.ones((T, n))),
+    ]
+    r = aggregate_individual_structures(
+        subjects,
+        tau=0.5,
         mc_n_samples=40,
         rng=rng,
         mc_refit_global_structure=True,
-        mc_contributors="all_subjects",
-        data_per_subject=[np.zeros((T, n)), np.ones((T, n))],
     )
     gb = r.global_beta_mc
     assert gb.n_contributors[0] == 2
-    assert gb.metadata["mc_contributors"] == "all_subjects"
+    assert gb.pooling == "population_mean"
 
 
 def test_aggregate_global_beta_mc_quantiles():
@@ -355,46 +368,6 @@ def test_aggregate_global_beta_mc_quantiles():
     assert gb.quantile_levels == (0.25, 0.5, 0.75)
     qcol = gb.beta_quantiles[:, 0, 2]
     assert np.all(np.diff(qcol) >= 0)
-
-
-def test_run_inds_global_beta_requires_filtered():
-    e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    consensus = vote_individual_structures([e01], tau=0.5)
-    with pytest.raises(ValueError, match="Monte Carlo requires"):
-        run_inds_global_beta_mc(
-            consensus,
-            [e01],
-            mc_n_samples=10,
-            rng=np.random.default_rng(0),
-        )
-
-
-def test_run_inds_global_beta_requires_rng():
-    e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    filt = _synth_filtered_n2_t5((1.0, 0.0, 0.0))[:1]
-    consensus = vote_individual_structures([e01], tau=0.5)
-    with pytest.raises(ValueError, match="rng is required"):
-        run_inds_global_beta_mc(
-            consensus,
-            [e01],
-            filtered_per_subject=filt,
-            mc_n_samples=5,
-            rng=None,  # type: ignore[arg-type]
-        )
-
-
-def test_run_inds_global_beta_filtered_length_mismatch():
-    e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))
-    consensus = vote_individual_structures([e01, e01], tau=0.5)
-    with pytest.raises(ValueError, match="filtered_per_subject length"):
-        run_inds_global_beta_mc(
-            consensus,
-            [e01, e01],
-            filtered_per_subject=filt[:1],
-            mc_n_samples=1,
-            rng=np.random.default_rng(0),
-        )
 
 
 def test_aggregate_invalid_precision_raises():
@@ -545,9 +518,8 @@ def test_mdm_aggregate_auto_refit_on_consensus(mock_refit):
     assert r.refit_filt_per_subject is not None
 
 
-@patch("mdmp.group_analysis.inds.refit.refit_mdm_on_structure")
-def test_mdm_aggregate_explicit_no_refit(mock_refit):
-    """mc_refit_global_structure=False keeps individual-DAG filtered MC path."""
+def test_mdm_aggregate_mc_rejects_no_refit():
+    """Monte Carlo requires refit on the consensus DAG."""
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
     T = 5
@@ -557,16 +529,14 @@ def test_mdm_aggregate_explicit_no_refit(mock_refit):
         node_names=["a", "b"],
         data=np.zeros((T, 2), dtype=float),
     )
-    r = aggregate_individual_structures(
-        [m],
-        tau=0.5,
-        mc_n_samples=10,
-        rng=np.random.default_rng(0),
-        mc_refit_global_structure=False,
-    )
-    mock_refit.assert_not_called()
-    assert r.global_beta_mc is not None
-    assert r.refit_filt_per_subject is None
+    with pytest.raises(ValueError, match="mc_refit_global_structure"):
+        aggregate_individual_structures(
+            [m],
+            tau=0.5,
+            mc_n_samples=10,
+            rng=np.random.default_rng(0),
+            mc_refit_global_structure=False,
+        )
 
 
 def test_aggregate_mdm_mc_covers_all_filter_times():
@@ -589,7 +559,7 @@ def test_aggregate_mdm_mc_covers_all_filter_times():
             tau=0.5,
             mc_n_samples=20,
             rng=np.random.default_rng(1),
-            mc_refit_global_structure=False,
+            mc_refit_global_structure=True,
         )
     assert r.global_beta_mc is not None
     assert r.global_beta_mc.beta_samples.shape == (20, 1, T)

@@ -12,14 +12,8 @@ import pytest
 
 from mdmp.group_analysis import (
     ISAggregatedMDMView,
-    ISAggregateOptions,
     ISAggregationResult,
-    ISMonteCarloOptions,
     aggregate_individual_structures,
-    aggregate_with_options,
-    as_inds_mdm_view,
-    merge_aggregate_options,
-    vote_individual_structures,
 )
 from mdmp.group_analysis.inds.voting import repair_dag_to_acyclic, vote_edge_frequencies
 from mdmp.plotting import plot_dag
@@ -60,16 +54,6 @@ def test_threshold_inclusive_boundary():
     assert freq[0, 1] == pytest.approx(0.6)
     assert cand_s[0, 1] == 0
     assert cand_i[0, 1] == 1
-
-
-def test_aggregate_with_options_matches_flat_keywords():
-    edge01 = np.zeros((2, 2), dtype=int)
-    edge01[0, 1] = 1
-    mats = [edge01.copy(), edge01.copy()]
-    opts = ISAggregateOptions(mc_n_samples=0)
-    flat = aggregate_individual_structures(mats, tau=0.5, mc_n_samples=0)
-    wrapped = aggregate_with_options(mats, tau=0.5, options=opts)
-    np.testing.assert_array_equal(wrapped.adj_mat, flat.adj_mat)
 
 
 def test_majority_threshold():
@@ -158,16 +142,6 @@ def test_result_type():
     assert r.global_beta_mc is None
 
 
-def test_vote_individual_structures_matches_aggregate_adj_only():
-    edge01 = np.zeros((2, 2), dtype=int)
-    edge01[0, 1] = 1
-    mats = [edge01.copy(), edge01.copy(), np.zeros((2, 2), dtype=int)]
-    v = vote_individual_structures(mats, tau=0.5)
-    full = aggregate_individual_structures(mats, tau=0.5, mc_n_samples=0)
-    np.testing.assert_array_equal(v.adj_mat, full.adj_mat)
-    assert v.metadata["threshold_mode"] == full.metadata["threshold_mode"]
-
-
 def test_vote_and_repair_split_matches_combined():
     edge01 = np.zeros((2, 2), dtype=int)
     edge01[0, 1] = 1
@@ -180,85 +154,6 @@ def test_vote_and_repair_split_matches_combined():
     out2, meta2 = _vote_threshold_and_repair_cycles(mats, 0.5, names, threshold_mode="strict")
     np.testing.assert_array_equal(out, out2)
     assert removed == meta2["edges_removed_for_acyclicity"]
-
-
-def test_merge_aggregate_options_matches_flat():
-    opts = merge_aggregate_options(
-        mc=ISMonteCarloOptions(mc_n_samples=100, rng=np.random.default_rng(0)),
-    )
-    flat = ISAggregateOptions(mc_n_samples=100, rng=np.random.default_rng(0))
-    assert opts.mc_n_samples == flat.mc_n_samples
-
-
-def test_run_inds_global_beta_mc_matches_aggregate_mdm():
-    """Split MC path matches aggregate for MDM inputs (all filter times)."""
-    from types import SimpleNamespace
-
-    from mdmp.group_analysis import run_inds_global_beta_mc
-
-    T = 8
-    tix = 0
-    n = 2
-    mt = np.array([0.25, 0.75])
-    Ct = np.diag([0.02, 0.02])
-    cc = np.zeros((2, 2, T))
-    for ti in range(T):
-        cc[:, :, ti] = Ct
-
-    def filt_for_child1() -> dict:
-        mt_d: dict = {}
-        ct_d: dict = {}
-        nt_d: dict = {}
-        dt_d: dict = {}
-        for c in range(n):
-            if c == 0:
-                mt_d[c] = np.zeros((1, T))
-                ct_d[c] = np.ones((1, 1, T)) * 1e-6
-            else:
-                m = np.zeros((2, T))
-                m[:, tix] = mt
-                mt_d[c] = m
-                ct_d[c] = cc.copy()
-            nt_d[c] = np.full(T, 25.0)
-            dt_d[c] = np.full(T, 25.0)
-        return {"mt": mt_d, "Ct": ct_d, "nt": nt_d, "dt": dt_d}
-
-    e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    filt = filt_for_child1()
-    mdm = SimpleNamespace(
-        adj_mat=e01,
-        Filt=filt,
-        node_names=["a", "b"],
-        data=np.zeros((T, n)),
-    )
-    rng = np.random.default_rng(42)
-    full = aggregate_individual_structures(
-        [mdm],
-        tau=0.5,
-        mc_n_samples=500,
-        rng=rng,
-    )
-    consensus = vote_individual_structures([mdm], tau=0.5)
-    split = run_inds_global_beta_mc(
-        consensus,
-        [mdm],
-        mc_n_samples=500,
-        rng=np.random.default_rng(42),
-    )
-    assert split.global_beta_mc is not None
-    assert full.global_beta_mc is not None
-    np.testing.assert_allclose(
-        split.global_beta_mc.beta_mean, full.global_beta_mc.beta_mean
-    )
-
-
-def test_as_inds_mdm_view_preserves_consensus():
-    dag = np.zeros((2, 2), dtype=int)
-    dag[0, 1] = 1
-    c = vote_individual_structures([dag, dag], tau=0.5)
-    view = as_inds_mdm_view(c, data=np.zeros((10, 2)))
-    assert view.data.shape == (10, 2)
-    np.testing.assert_array_equal(view.adj_mat, c.adj_mat)
 
 
 def test_plot_dag_accepts_is_aggregated_view():
