@@ -25,7 +25,27 @@ When `mc_posterior='smoothed'`, the code uses smoothed moments (smt, sCt) togeth
 
 Diagramas em [Mermaid](https://mermaid.js.org/). Pré-visualize no GitHub, VS Code (extensão Mermaid), ou [mermaid.live](https://mermaid.live).
 
-## 1. Visão geral: `aggregate_individual_structures`
+## 1. Pipeline (`inds.pipeline.run_full`)
+
+```mermaid
+flowchart TD
+  V[validate] --> C[coerce]
+  C --> VC[validate_coerced]
+  VC --> Vote[vote_edge_frequencies]
+  Vote --> Repair[repair_dag_to_acyclic]
+  Repair --> Refit{refit on G*?}
+  Refit -->|mc_refit_global_structure| R[refit_on_consensus]
+  Refit -->|skip| MCgate{n_draws > 0?}
+  R --> MCgate
+  MCgate -->|yes| MC[run_inds_global_beta_mc]
+  MCgate -->|no| Asm[assemble_view]
+  MC --> Asm
+```
+
+Split entry points: `vote_individual_structures`, `refit_on_consensus`,
+`run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`.
+
+## 2. Visão geral: `aggregate_individual_structures`
 
 ```mermaid
 flowchart LR

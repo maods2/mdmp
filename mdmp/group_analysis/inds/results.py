@@ -324,3 +324,86 @@ class ISAggregateOptions:
     mc_refit_global_structure: bool = False
     data_per_subject: Optional[Sequence[np.ndarray]] = None
     mc_refit_n_jobs: Optional[int] = None
+
+
+@dataclass
+class ISVoteOptions:
+    """Voting-stage options for Individual Structure aggregation."""
+
+    threshold_mode: ThresholdMode = "strict"
+
+
+@dataclass
+class ISMonteCarloOptions:
+    """Monte Carlo / refit options (global edge posterior given G*)."""
+
+    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
+    time_index: int = 0
+    time_indices: Optional[Sequence[int]] = None
+    n_draws: int = 0
+    rng: Optional[Any] = None
+    pooling: PoolingMode = "mean_with_edge"
+    mc_quantiles: Optional[Sequence[float]] = None
+    mc_posterior: MCPosteriorSource = "filtered"
+    mc_contributors: MCContributorMode = "individual_edge"
+    mc_refit_global_structure: bool = False
+    data_per_subject: Optional[Sequence[np.ndarray]] = None
+    mc_refit_n_jobs: Optional[int] = None
+
+
+@dataclass
+class ISMDMViewOptions:
+    """Plot-adapter fields only (not inferential)."""
+
+    plot_data: Optional[np.ndarray] = None
+    plot_filt: Optional[Mapping[str, Any]] = None
+    plot_smoo: Optional[Mapping[str, Any]] = None
+    plot_df: Optional[Mapping[str, Any]] = None
+    pool_filt_for_plotting: bool = False
+    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
+
+
+def merge_aggregate_options(
+    vote: Optional[ISVoteOptions] = None,
+    mc: Optional[ISMonteCarloOptions] = None,
+    view: Optional[ISMDMViewOptions] = None,
+) -> ISAggregateOptions:
+    """
+    Build a flat :class:`ISAggregateOptions` from grouped stage options.
+
+    Later groups override overlapping fields (e.g. ``filtered_per_subject``
+    on ``view`` wins over ``mc`` when both are set).
+    """
+    opts = ISAggregateOptions()
+    if vote is not None:
+        opts.threshold_mode = vote.threshold_mode
+    if mc is not None:
+        for field_name in (
+            "filtered_per_subject",
+            "time_index",
+            "time_indices",
+            "n_draws",
+            "rng",
+            "pooling",
+            "mc_quantiles",
+            "mc_posterior",
+            "mc_contributors",
+            "mc_refit_global_structure",
+            "data_per_subject",
+            "mc_refit_n_jobs",
+        ):
+            setattr(opts, field_name, getattr(mc, field_name))
+    if view is not None:
+        for field_name in (
+            "plot_data",
+            "plot_filt",
+            "plot_smoo",
+            "plot_df",
+            "pool_filt_for_plotting",
+            "filtered_per_subject",
+        ):
+            val = getattr(view, field_name)
+            if field_name == "filtered_per_subject" and val is None:
+                continue
+            setattr(opts, field_name, val)
+    return opts

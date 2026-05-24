@@ -1,14 +1,9 @@
 """
-Individual Structure (IS) aggregation across subjects.
+Individual Structure (inds) aggregation across subjects.
 
-Because ``is`` is a Python keyword, prefer::
+Import from here or from :mod:`mdmp.group_analysis` / :mod:`mdmp` re-exports::
 
-    from mdmp.group_analysis import aggregate_individual_structures, ISAggregationResult
-
-or::
-
-    import importlib
-    is_mod = importlib.import_module("mdmp.group_analysis.is")
+    from mdmp.group_analysis.inds import vote_individual_structures, ISAggregationResult
 """
 
 from .aggregation import (
@@ -18,34 +13,53 @@ from .aggregation import (
     ISAggregateOptions,
     ISAggregationResult,
     ISPlotAdapter,
+    IndsRefitResult,
     MCContributorMode,
     MCPosteriorSource,
     PoolingMode,
     aggregate_individual_structures,
     aggregate_with_options,
+    as_inds_mdm_view,
     build_plot_filt_from_subjects,
     compute_individual_structure_consensus,
+    pool_conditional_filtered_states,
+    refit_on_consensus,
+    run_inds_global_beta_mc,
+    vote_individual_structures,
 )
-from .voting import ThresholdMode
+from .results import (
+    ISMDMViewOptions,
+    ISMonteCarloOptions,
+    ISVoteOptions,
+    merge_aggregate_options,
+)
+from .voting import ThresholdMode, repair_dag_to_acyclic, vote_edge_frequencies
 
 __all__ = [
-    # Inference result types
     "GlobalBetaMCResult",
-    "ConditionalEdgePosteriorResult",   # canonical alias for GlobalBetaMCResult
+    "ConditionalEdgePosteriorResult",
     "ISAggregationResult",
-    # Plot-adapter types
     "ISAggregatedMDMView",
-    "ISPlotAdapter",                    # canonical alias for ISAggregatedMDMView
-    # Options
+    "ISPlotAdapter",
     "ISAggregateOptions",
-    # Type aliases
+    "ISVoteOptions",
+    "ISMonteCarloOptions",
+    "ISMDMViewOptions",
+    "merge_aggregate_options",
+    "IndsRefitResult",
     "MCContributorMode",
     "MCPosteriorSource",
     "PoolingMode",
     "ThresholdMode",
-    # Functions
     "aggregate_individual_structures",
     "aggregate_with_options",
-    "compute_individual_structure_consensus",  # canonical alias
+    "compute_individual_structure_consensus",
+    "vote_individual_structures",
+    "refit_on_consensus",
+    "run_inds_global_beta_mc",
+    "pool_conditional_filtered_states",
+    "as_inds_mdm_view",
     "build_plot_filt_from_subjects",
+    "vote_edge_frequencies",
+    "repair_dag_to_acyclic",
 ]

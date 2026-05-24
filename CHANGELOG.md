@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `mdmp.group_analysis.inds` subpackage (Individual Structure aggregation).
+- Add split entry points: `vote_individual_structures`, `refit_on_consensus`,
+  `run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`.
+- Add `ISVoteOptions`, `ISMonteCarloOptions`, `ISMDMViewOptions`, and
+  `merge_aggregate_options` for grouped configuration.
+- Add `inds.pipeline` orchestration module and split `vote_edge_frequencies` /
+  `repair_dag_to_acyclic` in `inds.voting`.
 - Add `ISAggregateOptions` and `aggregate_with_options` as a grouped alternative
   to the many keyword-only arguments of `aggregate_individual_structures`.
 - Add `threshold_mode` (`"strict"` / `"inclusive"`) to edge voting in
@@ -28,9 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add shared plotting input validators in `mdmp.plotting._input_checks`,
   plus test coverage for IS global-beta Monte Carlo and plotting integration.
 - Add IS aggregation workflow diagrams in
-  `mdmp/group_analysis/is/aggregation_diagrams.md`.
+  `mdmp/group_analysis/inds/aggregation_diagrams.md`.
 - Move edge voting and greedy cycle repair helpers to
-  `mdmp/group_analysis/is/voting.py`.
+  `mdmp/group_analysis/inds/voting.py`.
 
 ### Removed
 
@@ -39,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Individual Structure implementation package renamed from `mdmp.group_analysis.is`
+  to `mdmp.group_analysis.inds` (the `is` import path is removed).
+- `aggregate_individual_structures` is now a thin wrapper over `inds.pipeline.run_full`.
 - Replace structure-learning algorithm registry with a static `METHODS` map in
   `mdmp.structure.learner`; remove `register_algorithm`, `get_algorithm`, and
   `list_algorithms` from the public API.

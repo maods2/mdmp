@@ -14,9 +14,16 @@ from mdmp.group_analysis import (
     ISAggregatedMDMView,
     ISAggregateOptions,
     ISAggregationResult,
+    ISMDMViewOptions,
+    ISMonteCarloOptions,
+    ISVoteOptions,
     aggregate_individual_structures,
     aggregate_with_options,
+    as_inds_mdm_view,
+    merge_aggregate_options,
+    vote_individual_structures,
 )
+from mdmp.group_analysis.inds.voting import repair_dag_to_acyclic, vote_edge_frequencies
 from mdmp.plotting import plot_dag
 
 
@@ -163,6 +170,105 @@ def test_plot_data_shape_validates():
             tau=0.5,
             plot_data=np.zeros((5, 3)),
         )
+
+
+def test_vote_individual_structures_matches_aggregate_no_mc():
+    edge01 = np.zeros((2, 2), dtype=int)
+    edge01[0, 1] = 1
+    mats = [edge01.copy(), edge01.copy(), np.zeros((2, 2), dtype=int)]
+    v = vote_individual_structures(mats, tau=0.5)
+    full = aggregate_individual_structures(mats, tau=0.5, n_draws=0)
+    np.testing.assert_array_equal(v.adj_mat, full.adj_mat)
+    assert v.metadata["threshold_mode"] == full.metadata["threshold_mode"]
+
+
+def test_vote_and_repair_split_matches_combined():
+    edge01 = np.zeros((2, 2), dtype=int)
+    edge01[0, 1] = 1
+    mats = [edge01.copy(), edge01.copy(), np.zeros((2, 2), dtype=int)]
+    names = ["a", "b"]
+    cand, _counts, freq = vote_edge_frequencies(mats, 0.5, threshold_mode="strict")
+    out, removed = repair_dag_to_acyclic(cand, freq, names)
+    from mdmp.group_analysis.inds.voting import _vote_threshold_and_repair_cycles
+
+    out2, meta2 = _vote_threshold_and_repair_cycles(mats, 0.5, names, threshold_mode="strict")
+    np.testing.assert_array_equal(out, out2)
+    assert removed == meta2["edges_removed_for_acyclicity"]
+
+
+def test_merge_aggregate_options_matches_flat():
+    opts = merge_aggregate_options(
+        vote=ISVoteOptions(threshold_mode="inclusive"),
+        view=ISMDMViewOptions(pool_filt_for_plotting=False),
+    )
+    flat = ISAggregateOptions(threshold_mode="inclusive")
+    assert opts.threshold_mode == flat.threshold_mode
+
+
+def test_run_inds_global_beta_mc_matches_aggregate():
+    """Split MC path matches aggregate_individual_structures for the same inputs."""
+    from mdmp.group_analysis import run_inds_global_beta_mc
+
+    T = 8
+    tix = 3
+    n = 2
+    mt = np.array([0.25, 0.75])
+    Ct = np.diag([0.02, 0.02])
+    cc = np.zeros((2, 2, T))
+    for ti in range(T):
+        cc[:, :, ti] = Ct
+
+    def filt_for_child1() -> dict:
+        mt_d: dict = {}
+        ct_d: dict = {}
+        nt_d: dict = {}
+        dt_d: dict = {}
+        for c in range(n):
+            if c == 0:
+                mt_d[c] = np.zeros((1, T))
+                ct_d[c] = np.ones((1, 1, T)) * 1e-6
+            else:
+                m = np.zeros((2, T))
+                m[:, tix] = mt
+                mt_d[c] = m
+                ct_d[c] = cc.copy()
+            nt_d[c] = np.full(T, 25.0)
+            dt_d[c] = np.full(T, 25.0)
+        return {"mt": mt_d, "Ct": ct_d, "nt": nt_d, "dt": dt_d}
+
+    e01 = np.array([[0, 1], [0, 0]], dtype=int)
+    filt = filt_for_child1()
+    consensus = vote_individual_structures([e01], tau=0.5)
+    full = aggregate_individual_structures(
+        [e01],
+        tau=0.5,
+        filtered_per_subject=[filt],
+        time_index=tix,
+        n_draws=500,
+        rng=np.random.default_rng(42),
+    )
+    split = run_inds_global_beta_mc(
+        consensus,
+        [e01],
+        n_draws=500,
+        rng=np.random.default_rng(42),
+        filtered_per_subject=[filt],
+        time_index=tix,
+    )
+    assert split.global_beta_mc is not None
+    assert full.global_beta_mc is not None
+    np.testing.assert_allclose(
+        split.global_beta_mc.beta_mean, full.global_beta_mc.beta_mean
+    )
+
+
+def test_as_inds_mdm_view_preserves_consensus():
+    dag = np.zeros((2, 2), dtype=int)
+    dag[0, 1] = 1
+    c = vote_individual_structures([dag, dag], tau=0.5)
+    view = as_inds_mdm_view(c, data=np.zeros((10, 2)))
+    assert view.data.shape == (10, 2)
+    np.testing.assert_array_equal(view.adj_mat, c.adj_mat)
 
 
 def test_plot_dag_accepts_is_aggregated_view():

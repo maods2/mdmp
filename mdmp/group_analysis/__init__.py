@@ -6,17 +6,13 @@ Subpackages
 vts
     Virtual Typical Subject (VTS): build a representative time series across
     subjects (concatenation, mean-based, or median-based).
-is
-    Individual Structure (IS) aggregation: combine subject-specific DAGs into
+inds
+    Individual Structure aggregation: combine subject-specific DAGs into
     one global DAG via edge-frequency thresholding and acyclic repair; optional
     Monte Carlo pooling of filtered DLM edge coefficients. The return value
     (:class:`ISAggregatedMDMView`) mirrors key :class:`mdmp.model.MDM` attributes
     for :mod:`mdmp.plotting` when ``plot_data`` / ``plot_filt`` / etc. are supplied.
-    Import the ``is`` subpackage via ``importlib.import_module('mdmp.group_analysis.is')``
-    or use the re-exports below (``is`` is a keyword, so ``from ...is import`` is invalid).
 """
-
-import importlib
 
 from .vts import (
     ConcatenationStrategy,
@@ -32,21 +28,32 @@ from .vts import (
     prepare_multi_subject_data,
 )
 
-_is = importlib.import_module("mdmp.group_analysis.is")
-aggregate_individual_structures = _is.aggregate_individual_structures
-aggregate_with_options = _is.aggregate_with_options
-compute_individual_structure_consensus = _is.compute_individual_structure_consensus
-ISAggregationResult = _is.ISAggregationResult
-ISAggregatedMDMView = _is.ISAggregatedMDMView
-ISPlotAdapter = _is.ISPlotAdapter
-ISAggregateOptions = _is.ISAggregateOptions
-GlobalBetaMCResult = _is.GlobalBetaMCResult
-ConditionalEdgePosteriorResult = _is.ConditionalEdgePosteriorResult
-MCContributorMode = _is.MCContributorMode
-MCPosteriorSource = _is.MCPosteriorSource
-PoolingMode = _is.PoolingMode
-ThresholdMode = _is.ThresholdMode
-build_plot_filt_from_subjects = _is.build_plot_filt_from_subjects
+from .inds import (
+    ConditionalEdgePosteriorResult,
+    GlobalBetaMCResult,
+    ISAggregatedMDMView,
+    ISAggregateOptions,
+    ISAggregationResult,
+    ISPlotAdapter,
+    ISMDMViewOptions,
+    ISMonteCarloOptions,
+    ISVoteOptions,
+    IndsRefitResult,
+    merge_aggregate_options,
+    MCContributorMode,
+    MCPosteriorSource,
+    PoolingMode,
+    ThresholdMode,
+    aggregate_individual_structures,
+    aggregate_with_options,
+    as_inds_mdm_view,
+    build_plot_filt_from_subjects,
+    compute_individual_structure_consensus,
+    pool_conditional_filtered_states,
+    refit_on_consensus,
+    run_inds_global_beta_mc,
+    vote_individual_structures,
+)
 
 __all__ = [
     "compute_vts",
@@ -63,10 +70,20 @@ __all__ = [
     "aggregate_individual_structures",
     "aggregate_with_options",
     "compute_individual_structure_consensus",
+    "vote_individual_structures",
+    "refit_on_consensus",
+    "run_inds_global_beta_mc",
+    "pool_conditional_filtered_states",
+    "as_inds_mdm_view",
     "ISAggregationResult",
     "ISAggregatedMDMView",
     "ISPlotAdapter",
     "ISAggregateOptions",
+    "ISVoteOptions",
+    "ISMonteCarloOptions",
+    "ISMDMViewOptions",
+    "merge_aggregate_options",
+    "IndsRefitResult",
     "GlobalBetaMCResult",
     "ConditionalEdgePosteriorResult",
     "MCContributorMode",

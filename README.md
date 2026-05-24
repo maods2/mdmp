@@ -614,31 +614,44 @@ result = compute_vts(data, method="concatenation")  # Concatenate along time
 model = MDM(result.vts_data, method="hc")
 ```
 
-**Individual Structure (IS) aggregation** — one global DAG from subject adjacency matrices:
+**Individual Structure (IS) aggregation** — one global DAG from subject adjacency matrices.
+Implementation lives under `mdmp.group_analysis.inds`.
 
 ```python
-from mdmp import aggregate_individual_structures, plot_arcs, plot_dag
+from mdmp import (
+    aggregate_individual_structures,
+    plot_arcs,
+    plot_dag,
+    run_inds_global_beta_mc,
+    vote_individual_structures,
+)
 
+# 1) Consensus DAG only
+consensus = vote_individual_structures(list_of_adj_mats, tau=0.5)
+fig = plot_dag(consensus)
+
+# 2) Global edge posterior (Monte Carlo on G*; refit on G* recommended when you have subject data)
+import numpy as np
+rng = np.random.default_rng(0)
+result = run_inds_global_beta_mc(
+    consensus,
+    list_of_adj_mats,
+    n_draws=500,
+    rng=rng,
+    filtered_per_subject=list_of_filt_dicts,
+    mc_refit_global_structure=True,
+    data_per_subject=list_of_subject_arrays,
+)
+# result.global_beta_mc — inferential edge coefficients; not the same as pooled Filt for plot_arcs
+
+# 3) All-in-one (legacy-friendly)
 result = aggregate_individual_structures(list_of_adj_mats, tau=0.5)
-fig = plot_dag(result)  # ISAggregatedMDMView: adj_mat, node_names
-
-# Optional: pass fitted MDM instances — adjacency, Filt, and mean plot_data are taken from each model
 result = aggregate_individual_structures(
     list_of_mdm_models,
     tau=0.5,
     pool_filt_for_plotting=True,
 )
 fig2 = plot_arcs(result, plot_type="connections")
-
-# Or keep the low-level adjacency + Filt lists if you do not have MDM objects
-result = aggregate_individual_structures(
-    list_of_adj_mats,
-    tau=0.5,
-    node_names=names,
-    filtered_per_subject=list_of_filt_dicts,
-    pool_filt_for_plotting=True,
-    plot_data=time_series_T_by_N,
-)
 ```
 
 See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/05-is-aggregation.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).

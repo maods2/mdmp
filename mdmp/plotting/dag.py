@@ -73,7 +73,7 @@ def plot_dag(
     Parameters
     ----------
     mdm_object
-        Typically :class:`mdmp.model.MDM`, or :class:`mdmp.group_analysis.is.aggregation.ISAggregatedMDMView`
+        Typically :class:`mdmp.model.MDM`, or :class:`mdmp.group_analysis.inds.aggregation.ISAggregatedMDMView`
         / the return value of :func:`mdmp.group_analysis.aggregate_individual_structures`
         (needs ``adj_mat`` and optionally ``node_names``).
     node_labels : list of str, optional

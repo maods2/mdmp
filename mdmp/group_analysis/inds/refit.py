@@ -36,6 +36,14 @@ class _MCInputs(NamedTuple):
     refit_smoo_per_subject: Optional[List[Dict[str, Any]]]
 
 
+class IndsRefitResult(NamedTuple):
+    """Per-subject refit outputs on the consensus DAG G*."""
+
+    filt_per_subject: List[Dict[str, Any]]
+    smoo_per_subject: List[Dict[str, Any]]
+    filt_for_mc: List[Mapping[str, Any]]
+
+
 def _per_subject_data_for_refit(
     n_subjects: int,
     n_nodes: int,
@@ -103,6 +111,31 @@ def _refit_each_subject_on_global_adj(
     return refit_filt, refit_smoo, filt_mc
 
 
+def refit_on_consensus(
+    global_adj: np.ndarray,
+    node_names: List[str],
+    *,
+    data_per_subject: Sequence[np.ndarray],
+    mc_refit_n_jobs: Optional[int] = None,
+) -> IndsRefitResult:
+    """
+    Refit each subject's DLM on the fixed consensus DAG G*.
+
+    Recommended before Monte Carlo when per-subject ``(T, N)`` data are available.
+    All posteriors are conditional on G*: ``p(θ | G*)``.
+    """
+    n_nodes = int(np.asarray(global_adj).shape[0])
+    datas = [np.asarray(x, dtype=float) for x in data_per_subject]
+    refit_filt, refit_smoo, filt_mc = _refit_each_subject_on_global_adj(
+        datas,
+        np.asarray(global_adj, dtype=int),
+        node_names,
+        n_nodes,
+        mc_refit_n_jobs,
+    )
+    return IndsRefitResult(refit_filt, refit_smoo, filt_mc)
+
+
 def build_mc_inputs(
     *,
     mc_refit_global_structure: bool,
@@ -125,7 +158,7 @@ def build_mc_inputs(
     individual DAGs).
 
     Returns an :class:`_MCInputs` bundle consumed by
-    :func:`~mdmp.group_analysis.is.monte_carlo._monte_carlo_global_edge_beta`.
+    :func:`~mdmp.group_analysis.inds.monte_carlo._monte_carlo_global_edge_beta`.
     """
     from .monte_carlo import _smooth_filtered_sequence
 

@@ -1,9 +1,23 @@
 """Adjacency normalization, validation, and MDM-like subject coercion."""
 
+from dataclasses import dataclass
 from typing import Any, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
+
+
+@dataclass
+class _PreparedSubjects:
+    """Coerced subject adjacencies and optional filter/data payloads."""
+
+    arrays: List[np.ndarray]
+    names: List[str]
+    n_subjects: int
+    n_nodes: int
+    filtered: Optional[Sequence[Mapping[str, Any]]]
+    plot_data: Optional[np.ndarray]
+    mdm_data_per_subject: Optional[List[np.ndarray]]
 
 
 def _as_float_matrix(adj: Union[np.ndarray, pd.DataFrame]) -> Tuple[np.ndarray, Optional[List[str]]]:
