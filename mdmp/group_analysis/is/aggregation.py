@@ -23,16 +23,16 @@ import pandas as pd
 
 from ...model.refit import refit_mdm_on_structure
 from ..._node_dispatch import smooth_all_nodes
-from .adj_coercion import (
+from .coercion import (
     _coerce_subjects_for_aggregation,
     _normalize_first_argument,
     _validate_adj_list,
 )
-from .mc_global_beta import (
+from .monte_carlo import (
     _monte_carlo_global_edge_beta,
     _smooth_filtered_sequence,
 )
-from .plot_filt_pool import build_plot_filt_from_subjects
+from .pooled_filtering import build_plot_filt_from_subjects
 from .results import (
     GlobalBetaMCResult,
     ISAggregateOptions,

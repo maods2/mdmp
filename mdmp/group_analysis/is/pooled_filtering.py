@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from ...utils import build_design_matrix, build_parameter_names
-from .adj_coercion import _to_binary_adj
+from .coercion import _to_binary_adj
 
 
 def build_plot_filt_from_subjects(
