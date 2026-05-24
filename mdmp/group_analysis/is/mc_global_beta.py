@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ...model.smoothing_pipeline import SmoothingPipeline
+from ..._node_dispatch import smooth_all_nodes
 from ...utils import build_design_matrix
 from .results import (
     GlobalBetaMCResult,
@@ -353,17 +353,9 @@ def _smooth_filtered_sequence(
     filtered: Sequence[Mapping[str, Any]],
     n_jobs: Optional[int],
 ) -> List[Dict[str, Any]]:
-    sp = SmoothingPipeline(verbose=False)
-    smoothed: List[Dict[str, Any]] = []
-    for f in filtered:
-        smoothed.append(
-            sp.smooth_nodes(
-                mt=f["mt"],
-                Ct=f["Ct"],
-                Rt=f["Rt"],
-                nt=f["nt"],
-                dt=f["dt"],
-                n_jobs=n_jobs,
-            )
+    return [
+        smooth_all_nodes(
+            mt=f["mt"], Ct=f["Ct"], Rt=f["Rt"], nt=f["nt"], dt=f["dt"], n_jobs=n_jobs,
         )
-    return smoothed
+        for f in filtered
+    ]

@@ -16,6 +16,35 @@ from .scoring import MdmStructureScore
 from .utils import extract_adjacency_from_model
 
 
+def _build_pgmpy_score(df, node_names, nbf):
+    """Wrap MdmStructureScore for pgmpy compatibility.
+
+    Returns (df, columns, score_wrapper) ready to pass to a pgmpy estimator.
+    """
+    try:
+        from pgmpy.estimators import StructureScore
+    except ImportError as exc:
+        raise ImportError(
+            "pgmpy is required for structure learning. Install with `pip install pgmpy`."
+        ) from exc
+    except AttributeError as exc:
+        raise _pgmpy_import_error_hint(exc) from exc
+
+    N = df.shape[1]
+    columns = list(node_names) if node_names is not None else [f"V{i+1}" for i in range(N)]
+    mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
+
+    class _Wrapper(StructureScore):
+        def __init__(self, df_input, mdm_score):
+            super().__init__(df_input)
+            self._mdm_score = mdm_score
+
+        def local_score(self, variable, parents):
+            return self._mdm_score.local_score(variable, parents)
+
+    return columns, _Wrapper(df, mdm_score_obj)
+
+
 def _preload_torch_for_pgmpy() -> None:
     """
     Import PyTorch before pgmpy when available.
@@ -257,7 +286,7 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         """
         _preload_torch_for_pgmpy()
         try:
-            from pgmpy.estimators import HillClimbSearch, StructureScore
+            from pgmpy.estimators import HillClimbSearch
         except ImportError as exc:
             raise ImportError(
                 "pgmpy is required for hill-climbing algorithm. "
@@ -267,26 +296,10 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
             raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
-
-        # Create MDM structure score
-        mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
-
-        # Wrap in StructureScore for pgmpy compatibility
-        class MdmStructureScoreWrapper(StructureScore):
-            def __init__(self, df_input, mdm_score):
-                super().__init__(df_input)
-                self._mdm_score = mdm_score
-
-            def local_score(self, variable, parents):
-                return self._mdm_score.local_score(variable, parents)
-
-        mdm_score = MdmStructureScoreWrapper(df, mdm_score_obj)
-
-        hc_kwargs = self._clean_kwargs(kwargs)
-
-        hc = HillClimbSearch(df)
-        model = hc.estimate(scoring_method=mdm_score, **hc_kwargs)
-
+        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
+        model = HillClimbSearch(df).estimate(
+            scoring_method=mdm_score, **self._clean_kwargs(kwargs)
+        )
         return extract_adjacency_from_model(model, columns)
 
 
@@ -337,7 +350,7 @@ class TabuAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         """
         _preload_torch_for_pgmpy()
         try:
-            from pgmpy.estimators import HillClimbSearch, StructureScore
+            from pgmpy.estimators import HillClimbSearch
         except ImportError as exc:
             raise ImportError(
                 "pgmpy is required for tabu search algorithm. "
@@ -347,29 +360,11 @@ class TabuAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
             raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
-
-        # Create MDM structure score
-        mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
-
-        # Wrap in StructureScore for pgmpy compatibility
-        class MdmStructureScoreWrapper(StructureScore):
-            def __init__(self, df_input, mdm_score):
-                super().__init__(df_input)
-                self._mdm_score = mdm_score
-
-            def local_score(self, variable, parents):
-                return self._mdm_score.local_score(variable, parents)
-
-        mdm_score = MdmStructureScoreWrapper(df, mdm_score_obj)
-
-        # Set default tabu_length if not provided
+        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
         tabu_kwargs = self._clean_kwargs(kwargs)
         if "tabu_length" not in tabu_kwargs:
             tabu_kwargs["tabu_length"] = 100
-
-        hc = HillClimbSearch(df)
-        model = hc.estimate(scoring_method=mdm_score, **tabu_kwargs)
-
+        model = HillClimbSearch(df).estimate(scoring_method=mdm_score, **tabu_kwargs)
         return extract_adjacency_from_model(model, columns)
 
 
@@ -400,7 +395,7 @@ class MMHCAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         """
         _preload_torch_for_pgmpy()
         try:
-            from pgmpy.estimators import MmhcEstimator, StructureScore
+            from pgmpy.estimators import MmhcEstimator
         except ImportError as exc:
             raise ImportError(
                 "pgmpy is required for MMHC algorithm. "
@@ -410,27 +405,10 @@ class MMHCAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
             raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
-
-        # Create MDM structure score
-        mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
-
-        # Wrap in StructureScore for pgmpy compatibility
-        class MdmStructureScoreWrapper(StructureScore):
-            def __init__(self, df_input, mdm_score):
-                super().__init__(df_input)
-                self._mdm_score = mdm_score
-
-            def local_score(self, variable, parents):
-                return self._mdm_score.local_score(variable, parents)
-
-        mdm_score = MdmStructureScoreWrapper(df, mdm_score_obj)
-
-        # Extract MMHC-specific kwargs
-        mmhc_kwargs = self._clean_kwargs(kwargs)
-
-        mmhc = MmhcEstimator(df)
-        model = mmhc.estimate(scoring_method=mdm_score, **mmhc_kwargs)
-
+        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
+        model = MmhcEstimator(df).estimate(
+            scoring_method=mdm_score, **self._clean_kwargs(kwargs)
+        )
         return extract_adjacency_from_model(model, columns)
 
 

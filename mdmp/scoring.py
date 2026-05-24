@@ -10,13 +10,10 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 from scipy.optimize import minimize_scalar
 
+from ._node_dispatch import evaluate_lpl
 from .constants import DEFAULT_NBF
 from .dlm import dlm_filter
-from .processing.scoring import ScoringProcessor
 from .utils import build_design_matrix, extract_target_series, get_default_delta
-
-# Removed: _evaluate_lpl_serial, _evaluate_lpl_parallel, _evaluate_lpl_combinations
-# These are now handled by ScoringProcessor in processing/scoring.py
 
 
 def select_discount_factors(
@@ -44,8 +41,6 @@ def select_discount_factors(
         Number of parallel jobs. If None or 1, uses serial processing.
         If -1, uses all available CPU cores. If > 1, uses that many workers.
         Default is None (serial processing).
-    verbose : bool, optional
-        Whether to show progress bars. Default is False.
     verbose : bool, optional
         Whether to show progress bars. Default is False.
 
@@ -86,13 +81,14 @@ def select_discount_factors(
         design_matrices[i], _ = build_design_matrix(data, adj_mat, i)
         target_series[i] = extract_target_series(data, i)
 
-    # Evaluate log predictive likelihood for each delta and node using processor
-    processor = ScoringProcessor(n_jobs=n_jobs, verbose=verbose)
-    lpldet = processor.evaluate_lpl(
+    # Evaluate log predictive likelihood for each delta and node
+    lpldet = evaluate_lpl(
         delta=delta,
         design_matrices=design_matrices,
         target_series=target_series,
-        nbf=nbf
+        nbf=nbf,
+        n_jobs=n_jobs,
+        verbose=verbose,
     )
 
     # Select best delta for each node (handling NaN values)
@@ -209,55 +205,16 @@ def compute_logpl(
     return -lpldet
 
 
+# Alias: compute_local_score(data, adj_mat, node_idx, delta, nbf) delegates to compute_logpl.
+# Note: argument order differs — compute_logpl takes (data, adj_mat, delta, node_idx, nbf).
 def compute_local_score(
     data: np.ndarray,
     adj_mat: np.ndarray,
     node_idx: int,
     delta: float,
-    nbf: int = DEFAULT_NBF
+    nbf: int = DEFAULT_NBF,
 ) -> float:
-    """
-    Compute local (node-level) MDM score for a given node and discount factor.
-
-    This is a unified function for local scoring that can be used by learning
-    algorithms. It computes the negative log predictive likelihood for a single
-    node given its parent structure.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Time series data (T x N).
-    adj_mat : np.ndarray
-        Adjacency matrix (N x N).
-    node_idx : int
-        Index of target node.
-    delta : float
-        Discount factor (must be between 0 and 1).
-    nbf : int, optional
-        Burn-in time point. Default is 15.
-
-    Returns
-    -------
-    float
-        Negative log predictive likelihood (lower is better).
-
-    Raises
-    ------
-    ValueError
-        If node_idx is out of bounds or adj_mat dimensions don't match data.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from mdmp.scoring import compute_local_score
-    >>> data = np.random.randn(100, 3)
-    >>> adj_mat = np.zeros((3, 3))
-    >>> adj_mat[0, 1] = 1  # Node 0 is parent of node 1
-    >>> score = compute_local_score(data, adj_mat, node_idx=1, delta=0.9)
-    >>> print(score)
-    """
-    # This is essentially the same as compute_logpl, but with a clearer name
-    # for the unified interface
+    """Negative log predictive likelihood for one node. Alias of compute_logpl."""
     return compute_logpl(data, adj_mat, delta, node_idx, nbf)
 
 

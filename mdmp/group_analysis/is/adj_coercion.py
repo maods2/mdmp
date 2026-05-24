@@ -87,16 +87,14 @@ def _is_fitted_mdm_like(obj: Any) -> bool:
 
         if isinstance(obj, _MDM):
             return True
-    except Exception:
+    except ImportError:
         pass
-    try:
-        if getattr(obj, "adj_mat", None) is None:
-            return False
-        if getattr(obj, "Filt", None) is None:
-            return False
-        if getattr(obj, "node_names", None) is None:
-            return False
-    except Exception:
+    # Duck-typed fallback: check for MDM-like attributes
+    if getattr(obj, "adj_mat", None) is None:
+        return False
+    if getattr(obj, "Filt", None) is None:
+        return False
+    if getattr(obj, "node_names", None) is None:
         return False
     return True
 
@@ -196,11 +194,10 @@ def _normalize_first_argument(adj_mats: Any) -> Any:
     """Wrap a single MDM or single 2D adjacency matrix as a one-element sequence."""
     try:
         from ...model import MDM as _MDM
-    except Exception:  # pragma: no cover
-        _MDM = None
-
-    if _MDM is not None and isinstance(adj_mats, _MDM):
-        return [adj_mats]
+        if isinstance(adj_mats, _MDM):
+            return [adj_mats]
+    except ImportError:  # pragma: no cover
+        pass
     if isinstance(adj_mats, np.ndarray) and adj_mats.ndim == 2:
         return [adj_mats]
     return adj_mats

@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from ...model.refit import refit_mdm_on_structure
-from ...model.smoothing_pipeline import SmoothingPipeline
+from ..._node_dispatch import smooth_all_nodes
 from .adj_coercion import (
     _coerce_subjects_for_aggregation,
     _normalize_first_argument,
@@ -186,8 +186,7 @@ def _refit_each_subject_on_global_adj(
         refit_filt.append(dict(rfit.Filt))
         smoo_raw = getattr(rfit, "Smoo", None)
         if smoo_raw is None:
-            sp = SmoothingPipeline(verbose=False)
-            smoo_raw = sp.smooth_nodes(
+            smoo_raw = smooth_all_nodes(
                 mt=rfit.Filt["mt"],
                 Ct=rfit.Filt["Ct"],
                 Rt=rfit.Filt["Rt"],
