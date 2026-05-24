@@ -176,12 +176,12 @@ def test_aggregate_global_beta_pooled_draws_wider_with_heterogeneous_subject_var
     hom = [filt_child1(tight), filt_child1(tight)]
     het = [filt_child1(tight), filt_child1(4.0)]
     n_mc = 12_000
-    kw = dict(
-        tau=0.5,
-        time_index=tix,
-        n_draws=n_mc,
-        pooling="mean_with_edge",
-    )
+    kw = {
+        "tau": 0.5,
+        "time_index": tix,
+        "n_draws": n_mc,
+        "pooling": "mean_with_edge",
+    }
     r_hom = aggregate_individual_structures(
         [e01, e01],
         filtered_per_subject=hom,
@@ -225,12 +225,12 @@ def test_aggregate_global_beta_sum_with_edge():
 def test_aggregate_global_beta_rng_determinism():
     adjs = [np.array([[0, 1], [0, 0]], dtype=int)]
     filt = _synth_filtered_n2_t5((1.5, 0.0, 0.0))[:1]
-    kw = dict(
-        filtered_per_subject=filt,
-        time_index=2,
-        n_draws=5,
-        pooling="mean_with_edge",
-    )
+    kw = {
+        "filtered_per_subject": filt,
+        "time_index": 2,
+        "n_draws": 5,
+        "pooling": "mean_with_edge",
+    }
     a = aggregate_individual_structures(
         adjs, tau=0.5, rng=np.random.default_rng(123), **kw
     )

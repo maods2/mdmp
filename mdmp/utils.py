@@ -13,7 +13,6 @@ from .constants import (
     DEFAULT_DELTA_MAX,
     DEFAULT_DELTA_MIN,
     DEFAULT_DELTA_STEP,
-    DEFAULT_NBF,
 )
 
 

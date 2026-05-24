@@ -11,8 +11,8 @@ import pandas as pd
 import pytest
 
 from mdmp.group_analysis import (
-    ISAggregateOptions,
     ISAggregatedMDMView,
+    ISAggregateOptions,
     ISAggregationResult,
     aggregate_individual_structures,
     aggregate_with_options,

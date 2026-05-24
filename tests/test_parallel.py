@@ -10,7 +10,7 @@ import pytest
 
 from mdmp.parallel import _get_n_jobs
 from mdmp.scoring import select_discount_factors
-from mdmp.utils import DEFAULT_NBF
+from mdmp.constants import DEFAULT_NBF
 
 
 def test_get_n_jobs():

@@ -32,8 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move edge voting and greedy cycle repair helpers to
   `mdmp/group_analysis/is/voting.py`.
 
+### Removed
+
+- Remove unused `BaseLearningAlgorithm.compute_score` and `_has_cycle`, and
+  `mdmp.scoring.compute_structure_score` (only used by the removed method).
+
 ### Changed
 
+- Replace structure-learning algorithm registry with a static `METHODS` map in
+  `mdmp.structure.learner`; remove `register_algorithm`, `get_algorithm`, and
+  `list_algorithms` from the public API.
 - `plot_arcs` now sizes its subplot grid to the number of matching parameters
   (up to four columns) instead of a fixed 2×2 cap at four panels; default
   `figsize` scales with the grid.

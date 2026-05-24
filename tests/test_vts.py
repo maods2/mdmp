@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mdmp import MDM, compute_vts, validate_multi_subject_data, VTSResult
+from mdmp import MDM, VTSResult, compute_vts, validate_multi_subject_data
 from mdmp.group_analysis.vts import align_subjects, prepare_multi_subject_data
 
 
@@ -49,7 +49,7 @@ class TestValidateMultiSubjectData:
         np.random.seed(42)
         rows = []
         for s in range(3):
-            for t in range(50):
+            for _t in range(50):
                 rows.append({
                     "subject_id": s,
                     "V1": np.random.randn(),

@@ -13,8 +13,8 @@ or::
 
 from .aggregation import (
     GlobalBetaMCResult,
-    ISAggregateOptions,
     ISAggregatedMDMView,
+    ISAggregateOptions,
     ISAggregationResult,
     MCContributorMode,
     MCPosteriorSource,

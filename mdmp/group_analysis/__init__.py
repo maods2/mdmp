@@ -19,6 +19,9 @@ is
 import importlib
 
 from .vts import (
+    ConcatenationStrategy,
+    MeanBasedStrategy,
+    MedianBasedStrategy,
     VTSResult,
     align_subjects,
     compute_vts,
@@ -27,9 +30,6 @@ from .vts import (
     global_median,
     list_estimators,
     prepare_multi_subject_data,
-    ConcatenationStrategy,
-    MeanBasedStrategy,
-    MedianBasedStrategy,
 )
 
 _is = importlib.import_module("mdmp.group_analysis.is")

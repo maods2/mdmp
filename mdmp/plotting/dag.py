@@ -10,7 +10,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 if TYPE_CHECKING:
-    from ..model import MDM
+    pass
 
 
 def _hierarchical_layout(

@@ -21,8 +21,8 @@ from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Tup
 import numpy as np
 import pandas as pd
 
-from ...model.refit import refit_mdm_on_structure
 from ..._node_dispatch import smooth_all_nodes
+from ...model.refit import refit_mdm_on_structure
 from .coercion import (
     _coerce_subjects_for_aggregation,
     _normalize_first_argument,
@@ -35,8 +35,8 @@ from .monte_carlo import (
 from .pooled_filtering import build_plot_filt_from_subjects
 from .results import (
     GlobalBetaMCResult,
-    ISAggregateOptions,
     ISAggregatedMDMView,
+    ISAggregateOptions,
     ISAggregationResult,
     MCContributorMode,
     MCPosteriorSource,

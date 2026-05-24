@@ -8,21 +8,15 @@ This package is a Python port of the R package 'mdmr'.
 """
 
 from ._version import __version__
-
 from .datasets import (
     list_datasets,
     load_dataset,
 )
 from .dlm import dlm_filter, dlm_smooth
-from .model import MDM, refit_mdm_on_structure
-from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
-from .scoring import compute_logpl, select_discount_factors
-from .structure import StructureLearner
-from .validation import validate_multi_subject_data
 from .group_analysis import (
     GlobalBetaMCResult,
-    ISAggregateOptions,
     ISAggregatedMDMView,
+    ISAggregateOptions,
     ISAggregationResult,
     MCContributorMode,
     MCPosteriorSource,
@@ -34,6 +28,11 @@ from .group_analysis import (
     build_plot_filt_from_subjects,
     compute_vts,
 )
+from .model import MDM, refit_mdm_on_structure
+from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
+from .scoring import compute_logpl, select_discount_factors
+from .structure import StructureLearner
+from .validation import validate_multi_subject_data
 
 # Aliases to match R package function names
 CDELT = select_discount_factors  # R: CDELT
@@ -41,6 +40,7 @@ dlm_filt = dlm_filter            # R: dlm_filt
 dlm_smoo = dlm_smooth            # R: dlm_smoo
 
 __all__ = [
+    "__version__",
     # Main class
     "MDM",
     "refit_mdm_on_structure",

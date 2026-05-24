@@ -11,7 +11,7 @@ import numpy as np
 from ._input_checks import require_data_for_plot, require_filt_for_plot, require_smoo_for_plot
 
 if TYPE_CHECKING:
-    from ..model import MDM
+    pass
 
 
 def plot_idag(

@@ -9,7 +9,7 @@ Based on Capítulo 5 - Estudos de Simulação:
 - Figura 6: 5-variable DAG (Y1 root, Y1->Y2, Y1->Y3, Y2->Y4, Y3->Y4, Y2->Y5)
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd

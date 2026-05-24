@@ -16,7 +16,7 @@ from ._input_checks import (
 )
 
 if TYPE_CHECKING:
-    from ..model import MDM
+    pass
 
 _MAX_ARC_COLS = 4
 
