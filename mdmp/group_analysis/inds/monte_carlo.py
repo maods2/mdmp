@@ -272,7 +272,7 @@ def _monte_carlo_global_edge_beta(
     ``time_index`` gives shape ``(B, n_edges)``.
     """
     if n_mc < 1:
-        raise ValueError("n_draws must be at least 1")
+        raise ValueError("mc_n_samples must be at least 1")
     ss = len(filtered)
     if ss == 0:
         raise ValueError("filtered_per_subject must be non-empty")

@@ -120,8 +120,8 @@ class GlobalBetaMCResult:
     Attributes
     ----------
     beta_draws : np.ndarray
-        Shape ``(n_draws, n_edges)`` for a single time index, or
-        ``(n_draws, n_edges, n_times)`` when multiple times are requested.
+        Shape ``(mc_n_samples, n_edges)`` for a single time index, or
+        ``(mc_n_samples, n_edges, n_times)`` when multiple times are requested.
     edges : list of tuple
         ``(parent_idx, child_idx)`` in the same column order as ``beta_draws``.
     n_contributors : np.ndarray
@@ -203,7 +203,7 @@ class ISAggregationResult:
         (``'greedy_lowest_frequency_edge'``), and ``conditioning``
         (``'fixed_consensus_dag'``).
     global_beta_mc : GlobalBetaMCResult, optional
-        Present when ``n_draws > 0``.
+        Present when ``mc_n_samples > 0``.
     """
 
     adj_mat: np.ndarray
@@ -236,8 +236,7 @@ class ISAggregatedMDMView(ISAggregationResult):
     Inherits edge-voting metadata from :class:`ISAggregationResult` and adds
     the same optional attributes that :class:`mdmp.model.MDM` exposes so
     :mod:`mdmp.plotting` functions can be reused when those fields are set
-    (e.g. ``plot_filt`` / ``plot_data`` passed to
-    :func:`aggregate_individual_structures`).
+    (populated automatically when aggregating fitted MDM instances).
 
     Attributes
     ----------
@@ -253,7 +252,7 @@ class ISAggregatedMDMView(ISAggregationResult):
     DF : dict, optional
         Discount-factor outputs, same role as ``MDM.DF`` if needed downstream.
     refit_filt_per_subject : list of dict, optional
-        When ``mc_refit_global_structure=True`` and ``n_draws > 0``, one
+        When ``mc_refit_global_structure=True`` and ``mc_n_samples > 0``, one
         ``Filt`` dict per subject after refitting the consensus DAG.
     refit_smoo_per_subject : list of dict, optional
         Parallel ``Smoo`` dicts when refitting was run.
@@ -288,17 +287,7 @@ class ISAggregateOptions:
     Only :class:`ISAggregateOptions` fields are optional configuration; the
     graph list and ``tau`` stay on :func:`aggregate_with_options` /
     :func:`compute_individual_structure_consensus` / the main aggregate
-    function.  Defaults match :func:`aggregate_individual_structures` so you
-    can construct ``ISAggregateOptions(n_draws=100, rng=...)`` and omit
-    unrelated fields.
-
-    Notes
-    -----
-    **Nothing here is strictly required** for a minimal global-DAG vote: you
-    only need subject adjacency matrices (or MDMs) and ``tau`` on the aggregate
-    call.  Enable plotting, Monte Carlo, or refit by setting the corresponding
-    fields on this dataclass (or passing the same keywords to
-    :func:`aggregate_individual_structures`).
+    function.  Defaults match :func:`aggregate_individual_structures`.
 
     The ``pooling`` field accepts the canonical conditional names
     ``'conditional_mean_among_edge_subjects'`` and
@@ -306,23 +295,13 @@ class ISAggregateOptions:
     ``'mean_with_edge'`` and ``'sum_with_edge'`` (identical behaviour).
     """
 
-    threshold_mode: ThresholdMode = "strict"
-    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
-    time_index: int = 0
-    time_indices: Optional[Sequence[int]] = None
-    n_draws: int = 0
+    mc_n_samples: int = 500
     rng: Optional[Any] = None
     pooling: PoolingMode = "mean_with_edge"
-    plot_data: Optional[np.ndarray] = None
-    plot_filt: Optional[Mapping[str, Any]] = None
-    plot_smoo: Optional[Mapping[str, Any]] = None
-    plot_df: Optional[Mapping[str, Any]] = None
-    pool_filt_for_plotting: bool = False
     mc_quantiles: Optional[Sequence[float]] = None
     mc_posterior: MCPosteriorSource = "filtered"
     mc_contributors: MCContributorMode = "individual_edge"
     mc_refit_global_structure: bool = False
-    data_per_subject: Optional[Sequence[np.ndarray]] = None
     mc_refit_n_jobs: Optional[int] = None
 
 
@@ -340,7 +319,7 @@ class ISMonteCarloOptions:
     filtered_per_subject: Optional[Sequence[Mapping[str, Any]]] = None
     time_index: int = 0
     time_indices: Optional[Sequence[int]] = None
-    n_draws: int = 0
+    mc_n_samples: int = 0
     rng: Optional[Any] = None
     pooling: PoolingMode = "mean_with_edge"
     mc_quantiles: Optional[Sequence[float]] = None
@@ -355,7 +334,7 @@ class ISMonteCarloOptions:
 class ISMDMViewOptions:
     """Plot-adapter fields only (not inferential)."""
 
-    plot_data: Optional[np.ndarray] = None
+    time_series: Optional[np.ndarray] = None
     plot_filt: Optional[Mapping[str, Any]] = None
     plot_smoo: Optional[Mapping[str, Any]] = None
     plot_df: Optional[Mapping[str, Any]] = None
@@ -371,39 +350,22 @@ def merge_aggregate_options(
     """
     Build a flat :class:`ISAggregateOptions` from grouped stage options.
 
-    Later groups override overlapping fields (e.g. ``filtered_per_subject``
-    on ``view`` wins over ``mc`` when both are set).
+    ``vote`` and ``view`` are accepted for API compatibility; only ``mc`` fields
+    are merged into :class:`ISAggregateOptions` (aggregate no longer exposes
+    voting or plot-adapter kwargs).
     """
+    del vote, view  # voting/plot options are not on the aggregate entry point
     opts = ISAggregateOptions()
-    if vote is not None:
-        opts.threshold_mode = vote.threshold_mode
     if mc is not None:
         for field_name in (
-            "filtered_per_subject",
-            "time_index",
-            "time_indices",
-            "n_draws",
+            "mc_n_samples",
             "rng",
             "pooling",
             "mc_quantiles",
             "mc_posterior",
             "mc_contributors",
             "mc_refit_global_structure",
-            "data_per_subject",
             "mc_refit_n_jobs",
         ):
             setattr(opts, field_name, getattr(mc, field_name))
-    if view is not None:
-        for field_name in (
-            "plot_data",
-            "plot_filt",
-            "plot_smoo",
-            "plot_df",
-            "pool_filt_for_plotting",
-            "filtered_per_subject",
-        ):
-            val = getattr(view, field_name)
-            if field_name == "filtered_per_subject" and val is None:
-                continue
-            setattr(opts, field_name, val)
     return opts

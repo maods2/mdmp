@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   structures from per-subject filtered outputs.
 - Add support for passing fitted MDM-like objects directly to
   `aggregate_individual_structures`, reusing model adjacency/filter outputs and
-  deriving mean `plot_data` when needed.
+  deriving mean `time_series` when needed.
 - Add shared plotting input validators in `mdmp.plotting._input_checks`,
   plus test coverage for IS global-beta Monte Carlo and plotting integration.
 - Add IS aggregation workflow diagrams in
@@ -46,9 +46,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplify `aggregate_individual_structures`: inputs are adjacency matrices/DataFrames
+  or fitted MDMs only; strict edge voting is fixed; MDM inputs auto-run Monte Carlo
+  (`mc_n_samples` default 500) and auto-build pooled `Filt` for `plot_arcs`; removed
+  `threshold_mode`, `time_index` / `time_indices`, `time_series`, `plot_filt` /
+  `plot_smoo` / `plot_df`, `pool_filt_for_plotting`, `filtered_per_subject`, and
+  `data_per_subject` from the public aggregate API (split helpers retain MC/plot knobs).
 - Individual Structure implementation package renamed from `mdmp.group_analysis.is`
   to `mdmp.group_analysis.inds` (the `is` import path is removed).
-- `aggregate_individual_structures` is now a thin wrapper over `inds.pipeline.run_full`.
+- Public IS API lives in `inds.pipeline` (`aggregation.py` removed).
+- Rename Monte Carlo keyword `n_draws` to `mc_n_samples` on aggregation and
+  `ISAggregateOptions` / `ISMonteCarloOptions` (number of posterior samples per edge).
+- Rename aggregation keyword `plot_data` to `time_series` (multivariate ``(T, N)``
+  series on the consensus view, stored as ``ISAggregatedMDMView.data``).
+- Clarify internal naming: post-coercion values use ``resolved_*`` (e.g.
+  ``resolved_filtered_per_subject``, ``resolved_time_series``) instead of ``*_eff``.
 - Replace structure-learning algorithm registry with a static `METHODS` map in
   `mdmp.structure.learner`; remove `register_algorithm`, `get_algorithm`, and
   `list_algorithms` from the public API.

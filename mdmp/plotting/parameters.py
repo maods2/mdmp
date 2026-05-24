@@ -232,7 +232,7 @@ def plot_marginal(
     if figsize is None:
         figsize = (10, 6)
 
-    require_data_for_plot(mdm_object, plot_kw="plot_data=...")
+    require_data_for_plot(mdm_object, plot_kw="time_series=...")
     if distribution == "filt":
         require_filt_for_plot(mdm_object, plot_kw="plot_filt=...")
     else:

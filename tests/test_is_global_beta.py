@@ -1,6 +1,5 @@
 """
-Tests for IS-aligned Monte Carlo global edge coefficients via
-``aggregate_individual_structures``.
+Tests for IS-aligned Monte Carlo global edge coefficients.
 """
 
 import matplotlib
@@ -19,15 +18,39 @@ from mdmp.group_analysis import (
     ISAggregatedMDMView,
     ISAggregationResult,
     aggregate_individual_structures,
+    run_inds_global_beta_mc,
+    vote_individual_structures,
 )
 
 
-def test_aggregate_global_beta_mc_none_by_default():
+def _mc_aggregate(
+    adjs,
+    filt,
+    *,
+    tau: float = 0.5,
+    time_index: int = 0,
+    time_indices=None,
+    **kwargs,
+):
+    """Run MC via split API (adjacency + manual filt)."""
+    consensus = vote_individual_structures(adjs, tau=tau)
+    return run_inds_global_beta_mc(
+        consensus,
+        adjs,
+        filtered_per_subject=filt,
+        time_index=time_index,
+        time_indices=time_indices,
+        **kwargs,
+    )
+
+
+def test_aggregate_global_beta_mc_none_for_adj_only():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    r = aggregate_individual_structures([e01], tau=0.5)
+    r = aggregate_individual_structures([e01], tau=0.5, mc_n_samples=0)
     assert isinstance(r, ISAggregatedMDMView)
     assert isinstance(r, ISAggregationResult)
     assert r.global_beta_mc is None
+    assert r.Filt is None
 
 
 def test_aggregate_global_beta_posterior_mean_approximation():
@@ -36,7 +59,6 @@ def test_aggregate_global_beta_posterior_mean_approximation():
     T = 8
     tix = 3
     n = 2
-    # intercept + one parent (parent 0 -> child 1)
     mt = np.array([0.25, 0.75])
     Ct = np.diag([0.02, 0.02])
     cc = np.zeros((2, 2, T))
@@ -63,19 +85,17 @@ def test_aggregate_global_beta_posterior_mean_approximation():
 
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = filt_for_child1()
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         [e01],
-        tau=0.5,
-        filtered_per_subject=[filt],
+        [filt],
         time_index=tix,
-        n_draws=12_000,
+        mc_n_samples=12_000,
         rng=rng,
         pooling="mean_with_edge",
     )
     assert r.global_beta_mc is not None
     gb = r.global_beta_mc
     assert isinstance(gb, GlobalBetaMCResult)
-    # Column 0 is parent 0 -> child 1 (second state entry)
     col = gb.beta_draws[:, 0]
     assert np.nanmean(col) == pytest.approx(mt[1], abs=0.08)
 
@@ -130,12 +150,11 @@ def test_aggregate_global_beta_mean_with_edge():
     adjs = [e01.copy(), e01.copy(), no01.copy()]
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
     rng = np.random.default_rng(42)
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         adjs,
-        tau=0.5,
-        filtered_per_subject=filt,
+        filt,
         time_index=2,
-        n_draws=200,
+        mc_n_samples=200,
         rng=rng,
         pooling="mean_with_edge",
     )
@@ -148,7 +167,6 @@ def test_aggregate_global_beta_mean_with_edge():
 
 
 def test_aggregate_global_beta_pooled_draws_wider_with_heterogeneous_subject_variance():
-    """Same edge mean across subjects; higher per-subject uncertainty inflates pooled MC spread."""
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     T, tix, beta = 5, 2, 2.0
 
@@ -177,20 +195,19 @@ def test_aggregate_global_beta_pooled_draws_wider_with_heterogeneous_subject_var
     het = [filt_child1(tight), filt_child1(4.0)]
     n_mc = 12_000
     kw = {
-        "tau": 0.5,
         "time_index": tix,
-        "n_draws": n_mc,
+        "mc_n_samples": n_mc,
         "pooling": "mean_with_edge",
     }
-    r_hom = aggregate_individual_structures(
+    r_hom = _mc_aggregate(
         [e01, e01],
-        filtered_per_subject=hom,
+        hom,
         rng=np.random.default_rng(101),
         **kw,
     )
-    r_het = aggregate_individual_structures(
+    r_het = _mc_aggregate(
         [e01, e01],
-        filtered_per_subject=het,
+        het,
         rng=np.random.default_rng(101),
         **kw,
     )
@@ -208,12 +225,11 @@ def test_aggregate_global_beta_sum_with_edge():
     adjs = [e01.copy(), e01.copy()]
     filt = _synth_filtered_n2_t5((1.0, 3.0, 0.0))[:2]
     rng = np.random.default_rng(7)
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         adjs,
-        tau=0.5,
-        filtered_per_subject=filt,
+        filt,
         time_index=2,
-        n_draws=100,
+        mc_n_samples=100,
         rng=rng,
         pooling="sum_with_edge",
     )
@@ -226,29 +242,23 @@ def test_aggregate_global_beta_rng_determinism():
     adjs = [np.array([[0, 1], [0, 0]], dtype=int)]
     filt = _synth_filtered_n2_t5((1.5, 0.0, 0.0))[:1]
     kw = {
-        "filtered_per_subject": filt,
         "time_index": 2,
-        "n_draws": 5,
+        "mc_n_samples": 5,
         "pooling": "mean_with_edge",
     }
-    a = aggregate_individual_structures(
-        adjs, tau=0.5, rng=np.random.default_rng(123), **kw
-    )
-    b = aggregate_individual_structures(
-        adjs, tau=0.5, rng=np.random.default_rng(123), **kw
-    )
+    a = _mc_aggregate(adjs, filt, rng=np.random.default_rng(123), **kw)
+    b = _mc_aggregate(adjs, filt, rng=np.random.default_rng(123), **kw)
     assert np.allclose(a.global_beta_mc.beta_draws, b.global_beta_mc.beta_draws)
 
 
 def test_aggregate_global_beta_empty_graph():
     filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))[:1]
     adjs = [np.zeros((2, 2), dtype=int)]
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         adjs,
-        tau=0.5,
-        filtered_per_subject=filt,
+        filt,
         time_index=2,
-        n_draws=3,
+        mc_n_samples=3,
         rng=np.random.default_rng(0),
     )
     assert r.global_beta_mc is not None
@@ -259,12 +269,11 @@ def test_aggregate_global_beta_time_index_error():
     filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))[:1]
     adjs = [np.array([[0, 1], [0, 0]], dtype=int)]
     with pytest.raises(ValueError, match="out of range"):
-        aggregate_individual_structures(
+        _mc_aggregate(
             adjs,
-            tau=0.5,
-            filtered_per_subject=filt,
+            filt,
             time_index=99,
-            n_draws=1,
+            mc_n_samples=1,
             rng=np.random.default_rng(0),
         )
 
@@ -273,12 +282,11 @@ def test_aggregate_global_beta_time_indices_multi():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
     rng = np.random.default_rng(0)
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         [e01, e01],
-        tau=0.5,
-        filtered_per_subject=filt[:2],
+        filt[:2],
         time_indices=[1, 2, 3],
-        n_draws=50,
+        mc_n_samples=50,
         rng=rng,
     )
     gb = r.global_beta_mc
@@ -291,12 +299,11 @@ def test_aggregate_global_beta_beta_mean_var():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
     rng = np.random.default_rng(3)
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         [e01, e01],
-        tau=0.5,
-        filtered_per_subject=filt[:2],
+        filt[:2],
         time_index=2,
-        n_draws=200,
+        mc_n_samples=200,
         rng=rng,
     )
     gb = r.global_beta_mc
@@ -311,12 +318,11 @@ def test_aggregate_global_beta_smoothed_posterior():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt0 = _add_rt_to_filt(_synth_filtered_n2_t5((1.5, 0.0, 0.0))[0])
     rng = np.random.default_rng(11)
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         [e01],
-        tau=0.5,
-        filtered_per_subject=[filt0],
+        [filt0],
         time_index=2,
-        n_draws=30,
+        mc_n_samples=30,
         rng=rng,
         mc_posterior="smoothed",
     )
@@ -331,12 +337,11 @@ def test_mc_contributors_all_subjects_requires_refit():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))[:1]
     with pytest.raises(ValueError, match="mc_refit_global_structure"):
-        aggregate_individual_structures(
+        _mc_aggregate(
             [e01],
-            tau=0.5,
-            filtered_per_subject=filt,
+            filt,
             time_index=2,
-            n_draws=5,
+            mc_n_samples=5,
             rng=np.random.default_rng(0),
             mc_contributors="all_subjects",
         )
@@ -353,15 +358,16 @@ def test_mc_all_subjects_after_mock_refit(mock_refit):
     mock_refit.side_effect = _fake
     T, n = 5, 2
     rng = np.random.default_rng(99)
-    r = aggregate_individual_structures(
+    consensus = vote_individual_structures([e01.copy(), e01.copy()], tau=0.5)
+    r = run_inds_global_beta_mc(
+        consensus,
         [e01.copy(), e01.copy()],
-        tau=0.5,
-        data_per_subject=[np.zeros((T, n)), np.ones((T, n))],
         time_index=2,
-        n_draws=40,
+        mc_n_samples=40,
         rng=rng,
         mc_refit_global_structure=True,
         mc_contributors="all_subjects",
+        data_per_subject=[np.zeros((T, n)), np.ones((T, n))],
     )
     gb = r.global_beta_mc
     assert gb.n_contributors[0] == 2
@@ -372,12 +378,11 @@ def test_aggregate_global_beta_mc_quantiles():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
     rng = np.random.default_rng(1)
-    r = aggregate_individual_structures(
+    r = _mc_aggregate(
         [e01, e01],
-        tau=0.5,
-        filtered_per_subject=filt[:2],
+        filt[:2],
         time_index=2,
-        n_draws=400,
+        mc_n_samples=400,
         rng=rng,
         mc_quantiles=(0.25, 0.5, 0.75),
     )
@@ -390,32 +395,42 @@ def test_aggregate_global_beta_mc_quantiles():
     assert np.all(np.diff(qcol) >= 0)
 
 
-def test_aggregate_global_beta_requires_filtered_when_draws():
+def test_run_inds_global_beta_requires_filtered():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    with pytest.raises(ValueError, match="filtered_per_subject"):
-        aggregate_individual_structures(
-            [e01], tau=0.5, n_draws=10, rng=np.random.default_rng(0)
+    consensus = vote_individual_structures([e01], tau=0.5)
+    with pytest.raises(ValueError, match="Monte Carlo requires"):
+        run_inds_global_beta_mc(
+            consensus,
+            [e01],
+            mc_n_samples=10,
+            rng=np.random.default_rng(0),
         )
 
 
-def test_aggregate_global_beta_requires_rng():
+def test_run_inds_global_beta_requires_rng():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((1.0, 0.0, 0.0))[:1]
-    with pytest.raises(ValueError, match="rng"):
-        aggregate_individual_structures(
-            [e01], tau=0.5, filtered_per_subject=filt, n_draws=5
+    consensus = vote_individual_structures([e01], tau=0.5)
+    with pytest.raises(ValueError, match="rng is required"):
+        run_inds_global_beta_mc(
+            consensus,
+            [e01],
+            filtered_per_subject=filt,
+            mc_n_samples=5,
+            rng=None,  # type: ignore[arg-type]
         )
 
 
-def test_aggregate_global_beta_filtered_length_mismatch():
+def test_run_inds_global_beta_filtered_length_mismatch():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))
+    consensus = vote_individual_structures([e01, e01], tau=0.5)
     with pytest.raises(ValueError, match="filtered_per_subject length"):
-        aggregate_individual_structures(
+        run_inds_global_beta_mc(
+            consensus,
             [e01, e01],
-            tau=0.5,
             filtered_per_subject=filt[:1],
-            n_draws=1,
+            mc_n_samples=1,
             rng=np.random.default_rng(0),
         )
 
@@ -433,48 +448,28 @@ def test_aggregate_invalid_precision_raises():
     filt = {"mt": mt, "Ct": Ct, "nt": nt_bad, "dt": dt}
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     with pytest.raises(ValueError, match="nt and dt"):
-        aggregate_individual_structures(
+        _mc_aggregate(
             [e01],
-            tau=0.5,
-            filtered_per_subject=[filt],
+            [filt],
             time_index=tix,
-            n_draws=2,
+            mc_n_samples=2,
             rng=np.random.default_rng(0),
         )
 
 
-def test_pool_filt_for_plotting_requires_filtered():
+def test_mdm_aggregate_auto_pools_filt():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    with pytest.raises(ValueError, match="filtered_per_subject"):
-        aggregate_individual_structures(
-            [e01], tau=0.5, pool_filt_for_plotting=True
-        )
-
-
-def test_pool_filt_for_plotting_conflicts_with_plot_filt():
-    e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    filt = _synth_filtered_n2_t5((1.0, 1.0, 1.0))[:1]
-    dummy_filt = {"mt": filt[0]["mt"], "Ct": filt[0]["Ct"], "nt": filt[0]["nt"], "dt": filt[0]["dt"]}
-    with pytest.raises(ValueError, match="only one of"):
-        aggregate_individual_structures(
-            [e01],
-            tau=0.5,
-            filtered_per_subject=filt,
-            plot_filt=dummy_filt,
-            pool_filt_for_plotting=True,
-        )
-
-
-def test_pool_filt_for_plotting_builds_filt():
-    e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    no01 = np.array([[0, 0], [0, 0]], dtype=int)
-    adjs = [e01.copy(), e01.copy(), no01.copy()]
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
+    adjs = [e01.copy(), e01.copy(), np.zeros((2, 2), dtype=int)]
     r = aggregate_individual_structures(
-        adjs,
+        [
+            _mdm_like(adj_mat=adjs[0], Filt=filt[0], node_names=["a", "b"], data=np.zeros((5, 2))),
+            _mdm_like(adj_mat=adjs[1], Filt=filt[1], node_names=["a", "b"], data=np.zeros((5, 2))),
+            _mdm_like(adj_mat=adjs[2], Filt=filt[2], node_names=["a", "b"], data=np.zeros((5, 2))),
+        ],
         tau=0.5,
-        filtered_per_subject=filt,
-        pool_filt_for_plotting=True,
+        mc_n_samples=10,
+        rng=np.random.default_rng(0),
     )
     assert r.Filt is not None
     assert set(r.Filt.keys()) >= {"mt", "Ct", "nt", "dt"}
@@ -482,19 +477,23 @@ def test_pool_filt_for_plotting_builds_filt():
     assert r.Filt["mt"][1].ndim == 2
 
 
-def test_plot_arcs_on_pooled_is_view():
+def test_plot_arcs_on_mdm_aggregate_view():
     from mdmp.plotting import plot_arcs
 
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((1.0, 2.0, 0.0))[:1]
     T = 5
-    plot_data = np.zeros((T, 2), dtype=float)
+    m = _mdm_like(
+        adj_mat=e01,
+        Filt=filt[0],
+        node_names=["a", "b"],
+        data=np.zeros((T, 2), dtype=float),
+    )
     r = aggregate_individual_structures(
-        [e01],
+        [m],
         tau=0.5,
-        filtered_per_subject=filt,
-        pool_filt_for_plotting=True,
-        plot_data=plot_data,
+        mc_n_samples=5,
+        rng=np.random.default_rng(0),
     )
     fig = plot_arcs(r, plot_type="connections")
     assert fig is not None
@@ -523,7 +522,8 @@ def test_aggregate_from_mdm_like_objects_pool_filt():
     r = aggregate_individual_structures(
         [m0, m1],
         tau=0.5,
-        pool_filt_for_plotting=True,
+        mc_n_samples=10,
+        rng=np.random.default_rng(0),
     )
     assert r.Filt is not None
     assert r.data is not None and r.data.shape == (T, 2)
@@ -543,7 +543,9 @@ def test_aggregate_accepts_generator_of_mdm_like():
             data=np.zeros((T, 2), dtype=float),
         )
 
-    r = aggregate_individual_structures(gen(), tau=0.5, pool_filt_for_plotting=True)
+    r = aggregate_individual_structures(
+        gen(), tau=0.5, mc_n_samples=5, rng=np.random.default_rng(0)
+    )
     assert r.Filt is not None
 
 

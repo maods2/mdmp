@@ -81,7 +81,7 @@ DAG filtered (or smoothed) posterior, aligning coefficients to global edges.
 
 ### Step 4 — Monte Carlo global edge coefficients (optional)
 
-Enabled when `n_draws > 0` (default `0`; **not** 2000 — callers opt in).
+Enabled when `mc_n_samples > 0` (default `0`; **not** 2000 — callers opt in).
 Requires `rng`.
 
 For each replicate \(b = 1, \ldots, B\) and time index \(t\):
@@ -110,7 +110,7 @@ meaning, interval interpretation, and optional population-averaging mode.
 
 ### Step 5 — Plotting adapter (optional, separate from inference)
 
-- `pool_filt_for_plotting=True` or explicit `plot_filt` / `plot_data` /
+- `pool_filt_for_plotting=True` or explicit `plot_filt` / `time_series` /
   `plot_smoo` / `plot_df` populate `ISAggregatedMDMView` so `mdmp.plotting`
   routines accept the result like a fitted `MDM`.
 - Pooled filter construction lives in `pooled_filtering.py`; it is a
@@ -235,7 +235,7 @@ sampler).
 | `monte_carlo.py` module docstring | Expand the existing “not hierarchical” note with the four “does NOT” bullets and the canonical disclaimer. |
 | `results.py` — `GlobalBetaMCResult` | Same; reference `metadata['independence_assumption']='per_subject_dlm_posteriors'`. |
 | `group_analysis/__init__.py` submodule blurb | One sentence: MC output is not a hierarchical population model. |
-| Tests | Optional: assert `global_beta_mc.metadata` contains interpretation keys when `n_draws > 0`. |
+| Tests | Optional: assert `global_beta_mc.metadata` contains interpretation keys when `mc_n_samples > 0`. |
 
 ---
 
@@ -387,7 +387,7 @@ When executing this prompt, verify:
 - Plain binary adjacency matrices / DataFrames, or a **homogeneous** sequence of
   fitted `MDM`-like objects (duck-typed: `adj_mat`, `Filt`, `node_names`).
 - Single MDM or single 2D adjacency auto-wrapped to a one-element sequence.
-- MDM path auto-fills `filtered_per_subject` and can derive mean `plot_data`.
+- MDM path auto-fills `filtered_per_subject` and can derive mean `time_series`.
 
 ---
 
@@ -414,7 +414,7 @@ readability, mathematical traceability, modularity, debuggability, and simplicit
    or voting paths.
 6. **Naming consistency** — `IS*` prefix vs descriptive names; compare export
    style with `vts` (`VTSResult`, `compute_vts`, strategy classes).
-7. **Default MC draw count** — original spec suggested default `n_draws=2000`;
+7. **Default MC draw count** — original spec suggested default `mc_n_samples=2000`;
    current default is `0`. Recommend whether to change (truncated or keep
    opt-in and document rationale.
 8. **`aggregation_diagrams.md`** — partly Portuguese; consider English for repo

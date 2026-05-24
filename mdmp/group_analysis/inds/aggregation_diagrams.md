@@ -25,7 +25,7 @@ When `mc_posterior='smoothed'`, the code uses smoothed moments (smt, sCt) togeth
 
 Diagramas em [Mermaid](https://mermaid.js.org/). Pré-visualize no GitHub, VS Code (extensão Mermaid), ou [mermaid.live](https://mermaid.live).
 
-## 1. Pipeline (`inds.pipeline.run_full`)
+## 1. Pipeline (`inds.pipeline.aggregate_individual_structures`)
 
 ```mermaid
 flowchart TD
@@ -35,7 +35,7 @@ flowchart TD
   Vote --> Repair[repair_dag_to_acyclic]
   Repair --> Refit{refit on G*?}
   Refit -->|mc_refit_global_structure| R[refit_on_consensus]
-  Refit -->|skip| MCgate{n_draws > 0?}
+  Refit -->|skip| MCgate{mc_n_samples > 0?}
   R --> MCgate
   MCgate -->|yes| MC[run_inds_global_beta_mc]
   MCgate -->|no| Asm[assemble_view]
@@ -62,11 +62,11 @@ flowchart LR
     C1{Todos MDM-like?}
     C2["Extrair adj: (adj_mat > 0)"]
     C3["Opcional: Filt de cada m"]
-    C4["Opcional: plot_data = média dos data"]
+    C4["Opcional: time_series = média dos data"]
   end
 
   subgraph val["3. Validar"]
-    V["Adj binárias N×N; node_names; plot_data (T,N)"]
+    V["Adj binárias N×N; node_names; time_series (T,N)"]
   end
 
   subgraph vote["4. Voto + DAG"]
@@ -84,7 +84,7 @@ flowchart LR
   subgraph opt["Opcional"]
     PF["pool_filt / plot_filt → Filt global para plots"]
     RF["mc_refit_global_structure → refit MDM na DAG global"]
-    MC["n_draws > 0 → global_beta_mc"]
+    MC["mc_n_samples > 0 → global_beta_mc"]
   end
 
   M --> norm --> coerce
@@ -192,7 +192,7 @@ flowchart LR
 
 ## Referência no código
 
-- Orquestração: `aggregate_individual_structures` em `aggregation.py`
+- Orquestração: `aggregate_individual_structures` em `pipeline.py`
 - Voto + ciclos: `_vote_threshold_and_repair_cycles`, `_remove_lowest_freq_cycle_edge`
 - Refit estrutura fixa: `mdmp.model.refit_mdm_on_structure`
 - MC: `_monte_carlo_global_edge_beta`, `_monte_carlo_beta_draws_at_time`, `_sample_dlm_state_posterior`

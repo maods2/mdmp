@@ -11,7 +11,7 @@ inds
     one global DAG via edge-frequency thresholding and acyclic repair; optional
     Monte Carlo pooling of filtered DLM edge coefficients. The return value
     (:class:`ISAggregatedMDMView`) mirrors key :class:`mdmp.model.MDM` attributes
-    for :mod:`mdmp.plotting` when ``plot_data`` / ``plot_filt`` / etc. are supplied.
+    for :mod:`mdmp.plotting` when ``time_series`` / ``plot_filt`` / etc. are supplied.
 """
 
 from .vts import (

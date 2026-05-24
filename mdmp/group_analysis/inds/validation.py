@@ -7,7 +7,7 @@ checks that depend on the materialized subject arrays).
 No statistical logic lives here; these are purely defensive guards.
 """
 
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 
@@ -18,8 +18,6 @@ def validate_aggregate_args(
     tau: float,
     mc_contributors: MCContributorMode,
     mc_refit_global_structure: bool,
-    plot_filt: Optional[Mapping[str, Any]],
-    pool_filt_for_plotting: bool,
 ) -> None:
     """Validate top-level call arguments before any coercion or computation."""
     if not (0.0 < tau <= 1.0):
@@ -28,44 +26,41 @@ def validate_aggregate_args(
         raise ValueError(
             "mc_contributors='all_subjects' requires mc_refit_global_structure=True"
         )
-    if plot_filt is not None and pool_filt_for_plotting:
-        raise ValueError("pass only one of plot_filt=... or pool_filt_for_plotting=True")
 
 
 def validate_after_coercion(
-    n_draws: int,
-    filtered_eff: Optional[Sequence[Mapping[str, Any]]],
+    mc_n_samples: int,
+    resolved_filtered_per_subject: Optional[Sequence[Any]],
     mc_refit_global_structure: bool,
     rng: Optional[Any],
-    pool_filt_for_plotting: bool,
     n_subjects: int,
-    filtered_len: Optional[int],
-    plot_data_eff: Optional[np.ndarray],
+    resolved_filtered_len: Optional[int],
+    resolved_time_series: Optional[np.ndarray],
     n_nodes: int,
+    *,
+    mc_requested: bool,
 ) -> None:
     """Validate arguments whose feasibility depends on the coerced inputs."""
-    if n_draws > 0 and filtered_eff is None and not mc_refit_global_structure:
+    if (
+        mc_requested
+        and resolved_filtered_per_subject is None
+        and not mc_refit_global_structure
+    ):
         raise ValueError(
-            "filtered_per_subject is required when n_draws > 0 "
-            "(unless adj_mats are fitted MDM instances with Filt "
-            "or mc_refit_global_structure=True with per-subject data)"
+            "Monte Carlo requires per-subject filtered states "
+            "(pass fitted MDM instances with Filt, or use run_inds_global_beta_mc "
+            "with filtered_per_subject=..., or mc_refit_global_structure=True "
+            "with per-subject data from MDMs)"
         )
-    if n_draws > 0 and rng is None:
-        raise ValueError("rng is required when n_draws > 0")
-    if pool_filt_for_plotting and filtered_eff is None:
+    if resolved_filtered_per_subject is not None and resolved_filtered_len != n_subjects:
         raise ValueError(
-            "filtered_per_subject is required when pool_filt_for_plotting=True "
-            "(unless adj_mats are fitted MDM instances with Filt)"
-        )
-    if filtered_eff is not None and filtered_len != n_subjects:
-        raise ValueError(
-            f"filtered_per_subject length {filtered_len} must match "
+            f"filtered_per_subject length {resolved_filtered_len} must match "
             f"number of adjacency matrices {n_subjects}"
         )
-    if plot_data_eff is None:
+    if resolved_time_series is None:
         return
-    pd_arr = np.asarray(plot_data_eff)
+    pd_arr = np.asarray(resolved_time_series)
     if pd_arr.ndim != 2 or pd_arr.shape[1] != n_nodes:
         raise ValueError(
-            f"plot_data must have shape (T, {n_nodes}), got {getattr(pd_arr, 'shape', None)}"
+            f"time_series must have shape (T, {n_nodes}), got {getattr(pd_arr, 'shape', None)}"
         )

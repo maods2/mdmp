@@ -636,7 +636,7 @@ rng = np.random.default_rng(0)
 result = run_inds_global_beta_mc(
     consensus,
     list_of_adj_mats,
-    n_draws=500,
+    mc_n_samples=500,
     rng=rng,
     filtered_per_subject=list_of_filt_dicts,
     mc_refit_global_structure=True,
@@ -644,13 +644,9 @@ result = run_inds_global_beta_mc(
 )
 # result.global_beta_mc — inferential edge coefficients; not the same as pooled Filt for plot_arcs
 
-# 3) All-in-one (legacy-friendly)
-result = aggregate_individual_structures(list_of_adj_mats, tau=0.5)
-result = aggregate_individual_structures(
-    list_of_mdm_models,
-    tau=0.5,
-    pool_filt_for_plotting=True,
-)
+# 3) All-in-one: adjacency-only → consensus DAG; MDMs → DAG + MC + pooled Filt for plot_arcs
+result = aggregate_individual_structures(list_of_adj_mats, tau=0.5, mc_n_samples=0)
+result = aggregate_individual_structures(list_of_mdm_models, tau=0.5)
 fig2 = plot_arcs(result, plot_type="connections")
 ```
 
