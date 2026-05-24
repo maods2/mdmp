@@ -35,10 +35,13 @@ from .vts import (
 _is = importlib.import_module("mdmp.group_analysis.is")
 aggregate_individual_structures = _is.aggregate_individual_structures
 aggregate_with_options = _is.aggregate_with_options
+compute_individual_structure_consensus = _is.compute_individual_structure_consensus
 ISAggregationResult = _is.ISAggregationResult
 ISAggregatedMDMView = _is.ISAggregatedMDMView
+ISPlotAdapter = _is.ISPlotAdapter
 ISAggregateOptions = _is.ISAggregateOptions
 GlobalBetaMCResult = _is.GlobalBetaMCResult
+ConditionalEdgePosteriorResult = _is.ConditionalEdgePosteriorResult
 MCContributorMode = _is.MCContributorMode
 MCPosteriorSource = _is.MCPosteriorSource
 PoolingMode = _is.PoolingMode
@@ -59,10 +62,13 @@ __all__ = [
     "list_estimators",
     "aggregate_individual_structures",
     "aggregate_with_options",
+    "compute_individual_structure_consensus",
     "ISAggregationResult",
     "ISAggregatedMDMView",
+    "ISPlotAdapter",
     "ISAggregateOptions",
     "GlobalBetaMCResult",
+    "ConditionalEdgePosteriorResult",
     "MCContributorMode",
     "MCPosteriorSource",
     "PoolingMode",

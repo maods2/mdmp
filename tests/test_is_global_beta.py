@@ -342,7 +342,7 @@ def test_mc_contributors_all_subjects_requires_refit():
         )
 
 
-@patch("mdmp.group_analysis.is.aggregation.refit_mdm_on_structure")
+@patch("mdmp.group_analysis.is.refit.refit_mdm_on_structure")
 def test_mc_all_subjects_after_mock_refit(mock_refit):
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     shared = _add_rt_to_filt(_synth_filtered_n2_t5((3.0, 3.0, 3.0))[0])

@@ -113,5 +113,8 @@ def _vote_threshold_and_repair_cycles(
         "edge_frequencies": edge_frequencies.copy(),
         "edges_removed_for_acyclicity": removed,
         "threshold_mode": threshold_mode,
+        # Explicit traceability fields
+        "graph_repair_strategy": "greedy_lowest_frequency_edge",
+        "conditioning": "fixed_consensus_dag",
     }
     return out_adj, meta

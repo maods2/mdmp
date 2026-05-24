@@ -12,29 +12,40 @@ or::
 """
 
 from .aggregation import (
+    ConditionalEdgePosteriorResult,
     GlobalBetaMCResult,
     ISAggregatedMDMView,
     ISAggregateOptions,
     ISAggregationResult,
+    ISPlotAdapter,
     MCContributorMode,
     MCPosteriorSource,
     PoolingMode,
     aggregate_individual_structures,
     aggregate_with_options,
     build_plot_filt_from_subjects,
+    compute_individual_structure_consensus,
 )
 from .voting import ThresholdMode
 
 __all__ = [
+    # Inference result types
     "GlobalBetaMCResult",
-    "ISAggregateOptions",
-    "ISAggregatedMDMView",
+    "ConditionalEdgePosteriorResult",   # canonical alias for GlobalBetaMCResult
     "ISAggregationResult",
+    # Plot-adapter types
+    "ISAggregatedMDMView",
+    "ISPlotAdapter",                    # canonical alias for ISAggregatedMDMView
+    # Options
+    "ISAggregateOptions",
+    # Type aliases
     "MCContributorMode",
     "MCPosteriorSource",
     "PoolingMode",
     "ThresholdMode",
+    # Functions
     "aggregate_individual_structures",
     "aggregate_with_options",
+    "compute_individual_structure_consensus",  # canonical alias
     "build_plot_filt_from_subjects",
 ]

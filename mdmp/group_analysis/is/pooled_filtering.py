@@ -16,15 +16,22 @@ def build_plot_filt_from_subjects(
     node_names: Sequence[str],
 ) -> Dict[str, Any]:
     """
-    Build a ``Filt``-shaped dict on a **global** adjacency by pooling per-subject
-    filtered posteriors (mean of ``mt`` / diagonal ``Ct``, mean of ``nt`` / ``dt``).
+    Build a ``Filt``-shaped dict on the consensus DAG by conditionally pooling
+    per-subject filtered posteriors (mean of ``mt`` / diagonal ``Ct``, mean of
+    ``nt`` / ``dt``).
 
-    For each child node and each regression coefficient aligned with the global
-    parent ordering, only subjects whose individual DAG contains the same
-    directed parent edge contribute to that coefficient's pooled series.
+    **Conditional pooling.**  For each child node and each regression coefficient
+    aligned with the global parent ordering, only subjects whose individual DAG
+    contains the same directed parent edge contribute to that coefficient's
+    pooled series.  **Subjects without the edge do not contribute to the pooled
+    coefficient and are excluded from the divisor.**  This is a conditional
+    mean, analogous to ``pooling='conditional_mean_among_edge_subjects'`` in
+    Monte Carlo aggregation.
 
-    This is a plug-in summary for visualization (e.g. :func:`mdmp.plotting.plot_arcs`);
-    it is not a joint Bayesian posterior on the global graph.
+    **Visualization only.**  The returned dict is a plug-in summary for
+    :func:`mdmp.plotting.plot_arcs` and related routines.  It is **not** a
+    joint Bayesian posterior on the global graph, and it does not propagate
+    structural uncertainty.
     """
     arrays: List[np.ndarray] = []
     for raw in adj_per_subject:

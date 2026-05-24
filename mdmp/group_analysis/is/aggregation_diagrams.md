@@ -1,5 +1,28 @@
 # Individual Structure (IS) aggregation — logic diagrams
 
+## Statistical Interpretation (reference)
+
+Before reading the diagrams, keep three distinctions in mind:
+
+| Claim | What the code actually computes |
+|---|---|
+| "global effect" of edge p→c | **Conditional** mean E\[θ\|edge=1\]: only subjects expressing the edge contribute; absent subjects are excluded from both numerator and divisor |
+| "posterior credible interval" | MC uncertainty from **independent** per-subject DLM posteriors; **not** a joint hierarchical posterior; no shrinkage, no between-subject covariance |
+| "structural uncertainty" | G\* is **fixed** before any MC; inference is p(θ\|G\*); structural uncertainty is **not** propagated |
+
+**Pooling semantics.**
+`pooling='conditional_mean_among_edge_subjects'` (legacy alias `'mean_with_edge'`):
+
+```
+θ̄_t^(b) = (1/A) Σ_{i ∈ 𝒜} θ_{i,t}^(b)
+```
+
+where 𝒜 = subjects whose individual DAG contained edge p→c, A = |𝒜|.
+This estimates E\[θ_{pc,t} | edge_{pc} = 1\], **not** the unconditional population mean (1/S) Σ_i θ_{i,t}^(b).
+
+**Smoothed draws.**
+When `mc_posterior='smoothed'`, the code uses smoothed moments (smt, sCt) together with filtered (nt, dt) at the same time index — a pragmatic approximation, not the exact full smoothing posterior.
+
 Diagramas em [Mermaid](https://mermaid.js.org/). Pré-visualize no GitHub, VS Code (extensão Mermaid), ou [mermaid.live](https://mermaid.live).
 
 ## 1. Visão geral: `aggregate_individual_structures`

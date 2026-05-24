@@ -1,26 +1,42 @@
-"""Monte Carlo pooling of DLM regression states onto global DAG edges.
+"""Monte Carlo pooling of DLM regression states onto consensus DAG edges.
 
-Each replicate draws **independently** across subjects from that subject's
-filter (or smoother) state; pooled edge summaries are the pushforward of those
-**independent** posteriors through the align-and-pool map. Credible intervals
-from ``beta_draws`` are **not** from a fully joint hierarchical population
-model over subjects.
+Statistical Interpretation
+--------------------------
+**What this module computes.**
+For each global edge (p → c) in the consensus DAG G*, draws from per-subject
+DLM state posteriors are aligned to that edge and pooled across contributing
+subjects.  The resulting empirical distribution over pooled draws summarises:
 
-**Pooling denominator.** With ``pooling='mean_with_edge'``, the code averages
-only **contributing** subjects :math:`A` at that edge. For
-``mc_contributors='individual_edge'``, contributors are subjects whose
-individual DAG had the edge, so the divisor is :math:`A\\le S`, not a fixed
-:math:`1/S` over all :math:`S` subjects (missing edges are excluded rather than
-averaged in as zeros). With ``mc_contributors='all_subjects'`` after a global
-refit, typically :math:`A=S``.
+    E[θ_{pc,t} | edge_{pc} = 1]  (with pooling='conditional_mean_among_edge_subjects')
 
-**Smoothed draws.** When ``mc_posterior='smoothed'``, samples use smoothed
-``(m,C)`` with the filter's ``(n_t,d_t)`` at the same time in the Gamma–Normal
-step—a pragmatic reuse of the filtered sampling machinery, not a claim of exact
+This is the conditional posterior mean among subjects that expressed the edge,
+**not** an unconditional population-average effect.
+
+**What this module does NOT compute.**
+
+* No hierarchical population model is fitted; subjects are sampled
+  **independently** — no shrinkage, no between-subject covariance.
+* Credible intervals from ``beta_draws`` are *not* hierarchical credible
+  intervals from a joint population model.
+* Structural uncertainty is not propagated; inference is p(θ | G*), not the
+  full Bayesian model average p(θ) = Σ_G p(θ|G) p(G).
+
+**Pooling denominator.**
+With ``pooling='conditional_mean_among_edge_subjects'`` (alias:
+``'mean_with_edge'``), the code averages only contributing subjects A at that
+edge.  For ``mc_contributors='individual_edge'``, contributors are subjects
+whose individual DAG had the edge, so the divisor is A ≤ S, not a fixed 1/S
+over all S subjects (missing edges are excluded, not averaged in as zeros).
+With ``mc_contributors='all_subjects'`` after a global refit, typically A = S.
+
+**Smoothed draws.**
+When ``mc_posterior='smoothed'``, samples use smoothed ``(m, C)`` with the
+filter's ``(n_t, d_t)`` at the same time in the Gamma–Normal step — a
+pragmatic reuse of the filtered sampling machinery, not a claim of exact
 posterior sampling from the joint smoothing distribution.
 """
 
-from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -31,6 +47,16 @@ from .results import (
     ISAggregatedMDMView,
     MCContributorMode,
     MCPosteriorSource,
+    PoolingMode,
+)
+
+# Pooling modes that implement conditional_mean_among_edge_subjects semantics
+# (old name 'mean_with_edge' is a backward-compatible alias).
+_CONDITIONAL_MEAN_MODES = frozenset(
+    {"conditional_mean_among_edge_subjects", "mean_with_edge"}
+)
+_CONDITIONAL_SUM_MODES = frozenset(
+    {"conditional_sum_among_edge_subjects", "sum_with_edge"}
 )
 
 
@@ -104,7 +130,7 @@ def _monte_carlo_beta_draws_at_time(
     t_index: int,
     n_mc: int,
     gen: np.random.Generator,
-    pool: Literal["mean_with_edge", "sum_with_edge"],
+    pool: PoolingMode,
     *,
     mc_contributors: MCContributorMode = "individual_edge",
     smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
@@ -112,14 +138,25 @@ def _monte_carlo_beta_draws_at_time(
     """
     One timestep: for each MC replicate b, sample per subject then pool per edge.
 
-    ``mean_with_edge`` implements
-    :math:`\\bar{\\theta}^{(b)} = \\frac{1}{A}\\sum_{i\\in\\mathcal{A}} \\theta_i^{(b)}`
-    with :math:`\\mathcal{A}` the contributor set at that edge (for
-    ``individual_edge``, subjects with the edge on their DAG), not necessarily
-    all :math:`S` subjects.
+    **Conditional mean semantics.**
+    ``pool='conditional_mean_among_edge_subjects'`` (alias ``'mean_with_edge'``)
+    implements:
 
-    Hot path: a batched draw layout (vectorized over ``b``) could reduce Python
-    loop overhead here without changing the pooling definition.
+    .. math::
+        \\bar{\\theta}^{(b)} = \\frac{1}{A}\\sum_{i\\in\\mathcal{A}} \\theta_i^{(b)}
+
+    where :math:`\\mathcal{A}` is the contributor set (for
+    ``mc_contributors='individual_edge'``: subjects with the edge on their
+    individual DAG).  Subjects **without** the edge do not contribute to the
+    numerator and are excluded from the divisor :math:`A` — they are not
+    averaged in as zeros.
+
+    .. note::
+        Smoothed Monte Carlo draws use smoothed state moments ``(smt, sCt)``
+        together with filtered variance parameters ``(nt, dt)`` at the same
+        time index.  This is a pragmatic approximation to the full smoothed
+        Student-t posterior, not an exact draw from the joint smoothing
+        distribution.
     """
     e_ct = len(edges)
     beta_draws = np.empty((n_mc, e_ct), dtype=float)
@@ -139,6 +176,11 @@ def _monte_carlo_beta_draws_at_time(
                     m_col = mt_c[:, t_index]
                     c_slice = ct_c[:, :, t_index]
                 else:
+                    # NOTE:
+                    # Smoothed Monte Carlo draws use smoothed state moments together
+                    # with filtered variance parameters (nt, dt) at the same time
+                    # index. This is a pragmatic approximation to the full smoothed
+                    # Student-t posterior.
                     smo = smoothed_per_subject[si]
                     mt_c = smo["smt"][c]
                     ct_c = smo["sCt"][c]
@@ -166,16 +208,34 @@ def _monte_carlo_beta_draws_at_time(
                     vals.append(float(v))
             if not vals:
                 beta_draws[b, e] = np.nan
-            elif pool == "mean_with_edge":
-                # Explicit group mean: (1/A) * sum_i theta_i^(b), A = len(vals)
+            elif pool in _CONDITIONAL_MEAN_MODES:
+                # Conditional mean: (1/A) Σ_i θ_i^(b), A = |contributors|
+                # Subjects without this edge are excluded from both numerator
+                # and divisor — they do not enter as zeros.
                 a = len(vals)
                 beta_draws[b, e] = float(sum(vals)) / float(a)
-            elif pool == "sum_with_edge":
+            elif pool in _CONDITIONAL_SUM_MODES:
                 beta_draws[b, e] = float(sum(vals))
             else:
-                raise ValueError(f"unknown pooling: {pool}")
+                raise ValueError(f"unknown pooling mode: {pool!r}")
 
     return beta_draws
+
+
+def _pooling_semantics_label(pool: PoolingMode) -> str:
+    """Human-readable description of what the pooling mode computes."""
+    if pool in _CONDITIONAL_MEAN_MODES:
+        return (
+            "conditional_mean_E[theta|edge=1]: mean over subjects expressing the "
+            "edge (divisor = n_contributors, not total S subjects); subjects "
+            "without the edge are excluded from both numerator and divisor"
+        )
+    if pool in _CONDITIONAL_SUM_MODES:
+        return (
+            "conditional_sum: sum over subjects expressing the edge; subjects "
+            "without the edge are excluded"
+        )
+    return f"unknown pooling: {pool!r}"
 
 
 def _monte_carlo_global_edge_beta(
@@ -186,7 +246,7 @@ def _monte_carlo_global_edge_beta(
     time_index: int,
     n_mc: int,
     gen: np.random.Generator,
-    pool: Literal["mean_with_edge", "sum_with_edge"],
+    pool: PoolingMode,
     *,
     time_indices: Optional[Sequence[int]] = None,
     mc_quantiles: Optional[Sequence[float]] = None,
@@ -195,14 +255,20 @@ def _monte_carlo_global_edge_beta(
     smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> GlobalBetaMCResult:
     """
-    Monte Carlo over DLM posteriors + group pooling on the **global** DAG.
+    Monte Carlo over DLM posteriors + conditional pooling on the **consensus** DAG.
 
-    See module docstring for pooling divisor :math:`A` vs total subjects :math:`S`,
-    independence / non-hierarchical interpretation, and the smoothed-sampling
-    caveat.
+    Statistical Interpretation
+    --------------------------
+    All draws are conditioned on the fixed consensus DAG G* (``is_res.adj_mat``).
+    Inference is p(θ | G*); structural uncertainty is not propagated.  Subjects
+    are drawn independently; the result is not a joint hierarchical posterior.
 
-    If ``time_indices`` is set, steps (1)–(2) are repeated for each :math:`t`
-    and ``beta_draws`` has shape ``(B, n_edges, n_times)``; otherwise a single
+    See the module docstring for the pooling divisor A vs total subjects S,
+    the independence / non-hierarchical interpretation, and the smoothed-draw
+    approximation caveat.
+
+    If ``time_indices`` is set, steps (1)–(2) are repeated for each t and
+    ``beta_draws`` has shape ``(B, n_edges, n_times)``; otherwise a single
     ``time_index`` gives shape ``(B, n_edges)``.
     """
     if n_mc < 1:
@@ -235,14 +301,30 @@ def _monte_carlo_global_edge_beta(
     e_ct = len(edges)
 
     multi_t = len(t_list) > 1
+
+    # Build contributors_per_edge before early return so the field is always present.
+    n_contrib = np.zeros(e_ct, dtype=int)
+    contributors_per_edge: Dict[Tuple[int, int], int] = {}
+    for e, (p, cc) in enumerate(edges):
+        if mc_contributors == "all_subjects":
+            n_contrib[e] = ss
+        else:
+            n_contrib[e] = int(sum(1 for a in adjs_individual if a[p, cc] != 0))
+        contributors_per_edge[(p, cc)] = int(n_contrib[e])
+
+    base_meta: Dict[str, Any] = {
+        "edges_removed_for_acyclicity": is_res.metadata.get(
+            "edges_removed_for_acyclicity", []
+        ),
+        "n_subjects": ss,
+        "mc_posterior": mc_posterior,
+        "mc_contributors": mc_contributors,
+        "conditioning": "fixed_consensus_dag",
+        "pooling_semantics": _pooling_semantics_label(pool),
+        "contributors_per_edge": contributors_per_edge,
+    }
+
     if e_ct == 0:
-        meta_empty: Dict[str, Any] = {
-            "edges_removed_for_acyclicity": is_res.metadata.get(
-                "edges_removed_for_acyclicity", []
-            ),
-            "mc_posterior": mc_posterior,
-            "mc_contributors": mc_contributors,
-        }
         if multi_t:
             beta_empty = np.empty((n_mc, 0, len(t_list)), dtype=float)
         else:
@@ -253,18 +335,11 @@ def _monte_carlo_global_edge_beta(
             n_contributors=np.zeros(0, dtype=int),
             time_index=t_list[0],
             pooling=pool,
-            metadata=meta_empty,
+            metadata=base_meta,
             time_indices_mc=tuple(t_list) if multi_t else None,
             beta_mean=np.empty(0, dtype=float),
             beta_var=np.empty(0, dtype=float),
         )
-
-    n_contrib = np.zeros(e_ct, dtype=int)
-    for e, (p, cc) in enumerate(edges):
-        if mc_contributors == "all_subjects":
-            n_contrib[e] = ss
-        else:
-            n_contrib[e] = int(sum(1 for a in adjs_individual if a[p, cc] != 0))
 
     edge_mask_adjs = adjs_individual
 
@@ -326,21 +401,13 @@ def _monte_carlo_global_edge_beta(
             q_tuple = tuple(q_list)
             beta_q = np.nanquantile(beta_draws, np.asarray(q_list, dtype=float), axis=0)
 
-    meta_mc: Dict[str, Any] = {
-        "edges_removed_for_acyclicity": is_res.metadata.get(
-            "edges_removed_for_acyclicity", []
-        ),
-        "n_subjects": ss,
-        "mc_posterior": mc_posterior,
-        "mc_contributors": mc_contributors,
-    }
     return GlobalBetaMCResult(
         beta_draws=beta_draws,
         edges=edges,
         n_contributors=n_contrib,
         time_index=t_list[0],
         pooling=pool,
-        metadata=meta_mc,
+        metadata=base_meta,
         time_indices_mc=tuple(t_list) if multi_t else None,
         beta_quantiles=beta_q,
         quantile_levels=q_tuple,
