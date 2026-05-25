@@ -113,6 +113,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix `plot_idag` so the animation heatmap only colors real edges from `row_names`
+  and `adj_mat` (avoids intercept-on-diagonal and index-based mis-mapping).
 - Fix `build_design_matrix` when `adj_mat` uses floating dtypes (parameter counts
   must be integers).
 
