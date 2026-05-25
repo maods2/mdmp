@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..._node_dispatch import smooth_all_nodes
+from ..._node_dispatch import _parallel_map, smooth_all_nodes
 from ...utils import build_design_matrix
 from .results import GlobalBetaMCResult, ISAggregatedMDMView, MCPosteriorSource
 
@@ -32,7 +32,8 @@ POOLING_POPULATION_MEAN = "population_mean"
 # ---------------------------------------------------------------------------
 
 
-def _sample_dlm_state_posterior(
+def _sample_dlm_state_posterior_batch(
+    n_mc: int,
     mt: np.ndarray,
     Ct: np.ndarray,
     nt: float,
@@ -40,41 +41,37 @@ def _sample_dlm_state_posterior(
     gen: np.random.Generator,
 ) -> np.ndarray:
     """
-    Sample one DLM state vector from the marginal Student-t posterior.
+    Sample ``n_mc`` DLM state vectors from the marginal Student-t posterior.
 
-    Implements :math:`\\theta \\sim t_{\\nu}(m, C)` via
-    :math:`\\phi \\sim \\mathrm{Gamma}(n_t/2, 2/d_t)` and
-    :math:`\\theta \\mid \\phi \\sim \\mathcal{N}(m, C/\\phi)`.
-
-    Parameters
-    ----------
-    mt
-        Posterior mean vector ``m_t`` for one child node's regression
-        coefficients at a single time index, shape ``(p,)``.
-    Ct
-        Posterior covariance matrix ``C_t`` matching ``mt``, shape ``(p, p)``.
-    nt
-        Filtered hyperparameter ``n_t`` (drives the Student-t degrees of
-        freedom) at the same time index; must be positive.
-    dt
-        Filtered hyperparameter ``d_t`` (scale in the Gamma mixing distribution)
-        at the same time index; must be positive.
-    gen
-        NumPy random generator used for the Gamma and multivariate-normal draws.
+    Implements :math:`\\theta^{(b)} \\sim t_{\\nu}(m, C)` via independent
+    :math:`\\phi_b \\sim \\mathrm{Gamma}(n_t/2, 2/d_t)` and
+    :math:`\\theta^{(b)} \\mid \\phi_b \\sim \\mathcal{N}(m, C/\\phi_b)`.
 
     Returns
     -------
     np.ndarray
-        One posterior draw of the coefficient vector, shape ``(p,)``.
+        Posterior draws, shape ``(n_mc, p)``.
     """
     m = np.asarray(mt, dtype=float).reshape(-1)
     p = m.shape[0]
     c = np.asarray(Ct, dtype=float).reshape(p, p)
     if nt <= 0.0 or dt <= 0.0:
         raise ValueError(f"nt and dt must be positive, got nt={nt}, dt={dt}")
-    phi = float(gen.gamma(shape=nt / 2.0, scale=2.0 / dt))
-    cov = c / phi
-    return gen.multivariate_normal(m, cov)
+    phi = gen.gamma(shape=nt / 2.0, scale=2.0 / dt, size=n_mc)
+    chol = np.linalg.cholesky(c)
+    z = gen.standard_normal(size=(n_mc, p))
+    return m + (z @ chol.T) / np.sqrt(phi)[:, np.newaxis]
+
+
+def _sample_dlm_state_posterior(
+    mt: np.ndarray,
+    Ct: np.ndarray,
+    nt: float,
+    dt: float,
+    gen: np.random.Generator,
+) -> np.ndarray:
+    """One draw from the Student-t posterior; shape ``(p,)``."""
+    return _sample_dlm_state_posterior_batch(1, mt, Ct, nt, dt, gen)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -150,42 +147,71 @@ def _build_parent_lists(
     return parent_lists
 
 
-def _population_mean_over_subjects(vals: List[float], n_subjects: int) -> float:
-    """(1/S) sum_i theta_i for one MC replicate; ``nan`` if any subject is missing."""
-    if len(vals) != n_subjects or not all(np.isfinite(v) for v in vals):
-        return np.nan
-    return float(sum(vals)) / float(n_subjects)
+def _build_edge_coef_index(
+    edges: List[Tuple[int, int]],
+    parent_lists: List[List[List[int]]],
+    n_subjects: int,
+) -> Tuple[List[int], List[List[Optional[int]]]]:
+    """
+    Children that appear on global edges and per-edge local coefficient indices.
+
+    For edge ``(p, cc)`` and subject ``si``, index ``1 + k`` into the sampled
+    state at child ``cc``, or ``None`` if parent ``p`` is absent locally.
+    """
+    children_needed = sorted({cc for _, cc in edges})
+    edge_coef_index: List[List[Optional[int]]] = []
+    for p, cc in edges:
+        row: List[Optional[int]] = []
+        for si in range(n_subjects):
+            lp = parent_lists[si][cc]
+            pos = {int(par): k for k, par in enumerate(lp)}
+            k = pos.get(int(p))
+            row.append(None if k is None else 1 + k)
+        edge_coef_index.append(row)
+    return children_needed, edge_coef_index
 
 
-def _sample_subject_states_at_time(
-    filtered: Sequence[Mapping[str, Any]],
-    nn: int,
+def _population_mean_nanrule_batch(vals: np.ndarray, n_subjects: int) -> np.ndarray:
+    """
+    Population mean along subjects for each MC replicate.
+
+    ``vals`` has shape ``(B, S)``.  Row ``b`` is ``nan`` unless all ``S`` entries
+    are finite (same rule as the former per-replicate list aggregation).
+    """
+    if vals.shape[1] != n_subjects:
+        raise ValueError(f"vals.shape[1] {vals.shape[1]} != n_subjects {n_subjects}")
+    ok = np.all(np.isfinite(vals), axis=1)
+    out = np.full(vals.shape[0], np.nan, dtype=float)
+    if np.any(ok):
+        out[ok] = np.mean(vals[ok], axis=1)
+    return out
+
+
+def _mc_root_seed_sequence(rng: np.random.Generator) -> np.random.SeedSequence:
+    """Root entropy for per-time RNG spawns (one draw from ``rng``)."""
+    return np.random.SeedSequence(int(rng.integers(0, 2**63, dtype=np.uint64)))
+
+
+def _moments_at_time(
+    filt: Mapping[str, Any],
+    child: int,
     t_index: int,
-    gen: np.random.Generator,
-    *,
-    smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
-) -> List[List[np.ndarray]]:
-    """One MC replicate: sample all subjects, all child nodes at ``t_index``."""
-    subject_samples: List[List[np.ndarray]] = []
-    for si, filt in enumerate(filtered):
-        row: List[np.ndarray] = []
-        for c in range(nn):
-            nt_c = filt["nt"][c]
-            dt_c = filt["dt"][c]
-            nt_t = float(nt_c[t_index])
-            dt_t = float(dt_c[t_index])
-            if smoothed_per_subject is None:
-                mt_c = filt["mt"][c]
-                ct_c = filt["Ct"][c]
-            else:
-                smo = smoothed_per_subject[si]
-                mt_c = smo["smt"][c]
-                ct_c = smo["sCt"][c]
-            m_col = mt_c[:, t_index]
-            c_slice = ct_c[:, :, t_index]
-            row.append(_sample_dlm_state_posterior(m_col, c_slice, nt_t, dt_t, gen))
-        subject_samples.append(row)
-    return subject_samples
+    smoothed: Optional[Mapping[str, Any]],
+) -> Tuple[np.ndarray, np.ndarray, float, float]:
+    """Posterior moments for one child at one filter time index."""
+    nt_c = filt["nt"][child]
+    dt_c = filt["dt"][child]
+    nt_t = float(nt_c[t_index])
+    dt_t = float(dt_c[t_index])
+    if smoothed is None:
+        mt_c = filt["mt"][child]
+        ct_c = filt["Ct"][child]
+    else:
+        mt_c = smoothed["smt"][child]
+        ct_c = smoothed["sCt"][child]
+    m_col = np.asarray(mt_c[:, t_index], dtype=float)
+    c_slice = np.asarray(ct_c[:, :, t_index], dtype=float)
+    return m_col, c_slice, nt_t, dt_t
 
 
 # ---------------------------------------------------------------------------
@@ -194,49 +220,109 @@ def _sample_subject_states_at_time(
 
 
 def _monte_carlo_beta_samples_at_time(
-    filtered: Sequence[Mapping[str, Any]],
+    posterior_per_subject: Sequence[Mapping[str, Any]],
     edges: List[Tuple[int, int]],
-    parent_lists: List[List[List[int]]],
-    ss: int,
-    nn: int,
-    t_index: int,
-    n_mc: int,
-    gen: np.random.Generator,
+    edge_coef_index: List[List[Optional[int]]],
+    children_needed: List[int],
+    n_subjects: int,
+    time_index: int,
+    mc_n_samples: int,
+    rng: np.random.Generator,
     *,
     smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> np.ndarray:
     """
-    One timestep: for each replicate ``b``, sample per subject then
-    ``bar_theta_t^(b) = (1/S) sum_i theta_it^(b)`` per edge.
-    """
-    e_ct = len(edges)
-    beta_samples = np.empty((n_mc, e_ct), dtype=float)
+    Monte Carlo pooled edge coefficients at a single filter time index.
 
-    for b in range(n_mc):
-        subject_samples = _sample_subject_states_at_time(
-            filtered,
-            nn,
-            t_index,
-            gen,
-            smoothed_per_subject=smoothed_per_subject,
+    For each replicate ``b = 1, …, B``, draw regression states from each
+    subject's marginal posterior on the consensus DAG, then form the population
+    mean :math:`\\bar\\theta_t^{(b)} = \\frac{1}{S}\\sum_i \\theta_{it}^{(b)}`
+    on every global edge.  Sampling is vectorized over ``B``.
+
+    Parameters
+    ----------
+    posterior_per_subject
+        Length-``S`` filtered (or refit) DLM outputs with ``mt``, ``Ct``,
+        ``nt``, ``dt`` per child node.
+    edges
+        Global consensus edges ``(parent, child)`` in column-major order.
+    edge_coef_index
+        ``edge_coef_index[e][i]`` is the index into subject ``i``'s sampled
+        state vector at child ``edges[e][1]`` for parent ``edges[e][0]``, or
+        ``None`` if that parent is absent in subject ``i``'s local DAG.
+    children_needed
+        Sorted child node indices that appear as endpoints of ``edges``.
+    n_subjects
+        Number of subjects ``S``.
+    time_index
+        Filter time index ``t`` (column into ``mt`` / ``Ct``).
+    mc_n_samples
+        Number of Monte Carlo replicates ``B``.
+    rng
+        NumPy generator for Student-t posterior draws at this time index.
+    smoothed_per_subject
+        When set, use ``smt`` / ``sCt`` from these dicts with ``nt`` / ``dt``
+        from ``posterior_per_subject`` (``mc_posterior='smoothed'``).
+
+    Returns
+    -------
+    np.ndarray
+        ``beta_samples`` slice for this time, shape ``(mc_n_samples, n_edges)``.
+    """
+    n_edges = len(edges)
+    batch: Dict[Tuple[int, int], np.ndarray] = {}
+
+    for subject_idx, filt in enumerate(posterior_per_subject):
+        smo = (
+            None
+            if smoothed_per_subject is None
+            else smoothed_per_subject[subject_idx]
         )
-        for e, (p, cc) in enumerate(edges):
-            vals: List[float] = []
-            for si in range(ss):
-                theta = subject_samples[si][cc]
-                aligned = _align_child_local_to_global(
-                    theta,
-                    parent_lists[si][cc],
-                    [p],
-                )
-                v = aligned[0]
-                if not np.isfinite(v):
-                    vals = []
-                    break
-                vals.append(float(v))
-            beta_samples[b, e] = _population_mean_over_subjects(vals, ss)
+        for child in children_needed:
+            m_col, c_slice, nt_t, dt_t = _moments_at_time(
+                filt, child, time_index, smo
+            )
+            batch[(subject_idx, child)] = _sample_dlm_state_posterior_batch(
+                mc_n_samples, m_col, c_slice, nt_t, dt_t, rng
+            )
+
+    beta_samples = np.empty((mc_n_samples, n_edges), dtype=float)
+    for edge_idx, (_, child) in enumerate(edges):
+        vals = np.full((mc_n_samples, n_subjects), np.nan, dtype=float)
+        for subject_idx in range(n_subjects):
+            coef_idx = edge_coef_index[edge_idx][subject_idx]
+            if coef_idx is not None:
+                vals[:, subject_idx] = batch[(subject_idx, child)][:, coef_idx]
+        beta_samples[:, edge_idx] = _population_mean_nanrule_batch(vals, n_subjects)
 
     return beta_samples
+
+
+def _worker_mc_beta_at_time(args: Tuple[Any, ...]) -> np.ndarray:
+    """Picklable worker: one filter time index (see ``_monte_carlo_beta_samples_at_time``)."""
+    (
+        time_index,
+        posterior_per_subject,
+        edges,
+        edge_coef_index,
+        children_needed,
+        n_subjects,
+        mc_n_samples,
+        time_entropy,
+        smoothed_per_subject,
+    ) = args
+    rng = np.random.default_rng(np.random.SeedSequence(time_entropy))
+    return _monte_carlo_beta_samples_at_time(
+        posterior_per_subject,
+        edges,
+        edge_coef_index,
+        children_needed,
+        n_subjects,
+        time_index,
+        mc_n_samples,
+        rng,
+        smoothed_per_subject=smoothed_per_subject,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +403,7 @@ def _monte_carlo_global_edge_beta(
     mc_quantiles: Optional[Sequence[float]] = None,
     mc_posterior: MCPosteriorSource = "filtered",
     smoothed_per_subject: Optional[Sequence[Mapping[str, Any]]] = None,
+    mc_n_jobs: Optional[int] = None,
 ) -> GlobalBetaMCResult:
     """
     Monte Carlo global edge coefficients conditional on the consensus DAG G*.
@@ -325,42 +412,6 @@ def _monte_carlo_global_edge_beta(
     draw ``θ_{it}^{(b)}`` from each subject's marginal posterior, form the
     population mean ``θ̄_t^{(b)} = (1/S) Σ_i θ_{it}^{(b)}`` on each global edge,
     and summarize the empirical distribution over ``b``.
-
-    Parameters
-    ----------
-    posterior_per_subject
-        Length-``S`` sequence of per-subject filtered DLM outputs (dicts with
-        ``mt``, ``Ct``, ``nt``, ``dt`` keyed by child node index).  After refit
-        on G*, these are the posteriors used for sampling.
-    subject_adjacency_matrices
-        Length-``S`` list of ``N×N`` binary adjacency matrices—one per
-        subject—defining local parent sets when mapping regression coefficients
-        onto global edges.  With refit on the consensus DAG, entries are
-        typically identical copies of ``consensus_view.adj_mat``.
-    consensus_view
-        :class:`~mdmp.group_analysis.inds.results.ISAggregatedMDMView` whose
-        ``adj_mat`` is the fixed global DAG G*.  Directed edges in this matrix
-        are the Monte Carlo targets.
-    mc_n_samples
-        Number of Monte Carlo replicates ``B`` (first axis of ``beta_samples``).
-    rng
-        NumPy random generator used for Student-t posterior draws.
-    mc_quantiles
-        Optional quantile levels in ``(0, 1)``; when set, ``beta_quantiles`` is
-        computed along the replicate axis.
-    mc_posterior
-        ``"filtered"`` samples from filtered moments ``(mt, Ct)``;
-        ``"smoothed"`` uses ``(smt, sCt)`` with ``nt``/``dt`` from the filter
-        at the same time index.
-    smoothed_per_subject
-        Required when ``mc_posterior="smoothed"``: length-``S`` smoothed-output
-        dicts (``smt``, ``sCt`` per child) aligned with ``posterior_per_subject``.
-
-    Returns
-    -------
-    GlobalBetaMCResult
-        ``beta_samples`` with shape ``(B, n_edges, T)``, plus ``beta_mean``,
-        ``beta_var``, and optional ``beta_quantiles``.
     """
     if mc_n_samples < 1:
         raise ValueError("mc_n_samples must be at least 1")
@@ -388,24 +439,40 @@ def _monte_carlo_global_edge_beta(
     parent_lists = _build_parent_lists(
         subject_adjacency_matrices, n_subjects, n_nodes, n_times
     )
+    children_needed, edge_coef_index = _build_edge_coef_index(
+        edges, parent_lists, n_subjects
+    )
 
     if mc_posterior == "smoothed" and smoothed_per_subject is None:
         raise ValueError("smoothed_per_subject is required when mc_posterior='smoothed'")
 
-    blocks = [
-        _monte_carlo_beta_samples_at_time(
+    # One child RNG per filter time: derived from ``rng`` via SeedSequence.spawn so
+    # serial (mc_n_jobs=1) and parallel (mc_n_jobs>1) runs match, and times do not
+    # share random draws when workers run out of order.
+    root_ss = _mc_root_seed_sequence(rng)
+    time_seed_seqs = root_ss.spawn(n_times)
+
+    worker_args = [
+        (
+            time_index,
             posterior_per_subject,
             edges,
-            parent_lists,
+            edge_coef_index,
+            children_needed,
             n_subjects,
-            n_nodes,
-            tix,
             mc_n_samples,
-            rng,
-            smoothed_per_subject=smoothed_per_subject,
+            time_seed_seqs[time_index].entropy,
+            smoothed_per_subject,
         )
-        for tix in time_indices
+        for time_index in time_indices
     ]
+
+    blocks = _parallel_map(
+        _worker_mc_beta_at_time,
+        worker_args,
+        mc_n_jobs,
+        "Monte Carlo time steps",
+    )
     beta_samples = np.stack(blocks, axis=2)
 
     beta_mean, beta_var, beta_q, q_tuple = _summarize_beta_samples(beta_samples, mc_quantiles)

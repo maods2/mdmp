@@ -222,6 +222,7 @@ def run_mc_path(
     mc_posterior: MCPosteriorSource,
     mc_refit_global_structure: bool,
     mc_refit_n_jobs: Optional[int],
+    mc_n_jobs: Optional[int],
     data_per_subject: Optional[Sequence[np.ndarray]] = None,
 ) -> ISAggregatedMDMView:
     """
@@ -239,6 +240,9 @@ def run_mc_path(
         Posterior source; refit on G* must be enabled.
     mc_refit_n_jobs
         Parallel jobs for optional smoothing during MC setup.
+    mc_n_jobs
+        Parallel jobs over filter time steps during Monte Carlo sampling
+        (``None`` or ``1`` = serial; ``-1`` = all cores).
     data_per_subject
         Optional override for refit data; defaults to ``prepared.mdm_data_per_subject``.
 
@@ -269,6 +273,7 @@ def run_mc_path(
         mc_quantiles=mc_quantiles,
         mc_posterior=mc_posterior,
         smoothed_per_subject=mc.smoothed_per_subject,
+        mc_n_jobs=mc_n_jobs,
     )
     return replace(
         view,
@@ -329,6 +334,7 @@ def aggregate_individual_structures(
     mc_posterior: MCPosteriorSource = "filtered",
     mc_refit_global_structure: Optional[bool] = None,
     mc_refit_n_jobs: Optional[int] = None,
+    mc_n_jobs: Optional[int] = None,
 ) -> ISAggregatedMDMView:
     """
     Aggregate subject-specific DAGs into one consensus DAG.
@@ -365,6 +371,7 @@ def aggregate_individual_structures(
             mc_posterior=mc_posterior,
             mc_refit_global_structure=resolved_refit,
             mc_refit_n_jobs=mc_refit_n_jobs,
+            mc_n_jobs=mc_n_jobs,
         )
 
     if prepared.posterior_per_subject is not None:

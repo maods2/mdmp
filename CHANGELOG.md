@@ -33,9 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rename internal ``filtered_per_subject`` to ``posterior_per_subject`` (and
   ``resolved_filtered_*`` to ``resolved_posterior_*``) across IS coercion, MC, and
   plot-pooling helpers.
+- Speed up global-beta Monte Carlo: vectorized replicate sampling, edge coefficient
+  index precomputation, and optional parallelism over time.
 
 ### Added
 
+- `aggregate_individual_structures`: `mc_n_jobs` to parallelize Monte Carlo over filter
+  time steps (`None` or `1` = serial, `-1` = all cores).
 - Add `mdmp.group_analysis.inds` subpackage (Individual Structure aggregation).
 - Add split entry points: `vote_individual_structures`, `refit_on_consensus`,
   `run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`.

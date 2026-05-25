@@ -626,6 +626,7 @@ fig = plot_dag(result)
 
 # Fitted MDMs → consensus DAG + Monte Carlo on G* + pooled Filt for plot_arcs
 result = aggregate_individual_structures(list_of_mdm_models, tau=0.5)
+# Optional: mc_n_jobs=-1 parallelizes MC over time steps; mc_refit_n_jobs for refit/smoothing
 fig2 = plot_arcs(result, plot_type="connections")
 # result.global_beta_mc — inferential edge coefficients; not the same as pooled Filt
 ```

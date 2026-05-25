@@ -539,6 +539,25 @@ def test_mdm_aggregate_mc_rejects_no_refit():
         )
 
 
+def test_mc_n_jobs_parallel_matches_serial():
+    """mc_n_jobs>1 reproduces serial MC when using the same root RNG."""
+    e01 = np.array([[0, 1], [0, 0]], dtype=int)
+    filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))[:2]
+    kw = dict(mc_n_samples=80, rng=np.random.default_rng(99))
+    r_serial = _mc_aggregate([e01, e01], filt, **kw, mc_n_jobs=1)
+    kw["rng"] = np.random.default_rng(99)
+    r_parallel = _mc_aggregate([e01, e01], filt, **kw, mc_n_jobs=2)
+    assert r_serial.global_beta_mc is not None
+    assert r_parallel.global_beta_mc is not None
+    np.testing.assert_allclose(
+        r_serial.global_beta_mc.beta_samples,
+        r_parallel.global_beta_mc.beta_samples,
+        rtol=0.0,
+        atol=0.0,
+        equal_nan=True,
+    )
+
+
 def test_aggregate_mdm_mc_covers_all_filter_times():
     """aggregate_individual_structures MC uses every filter time index."""
     e01 = np.array([[0, 1], [0, 0]], dtype=int)

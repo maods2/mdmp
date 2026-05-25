@@ -263,6 +263,7 @@ class ISAggregateOptions:
     mc_posterior: MCPosteriorSource = "filtered"
     mc_refit_global_structure: Optional[bool] = None
     mc_refit_n_jobs: Optional[int] = None
+    mc_n_jobs: Optional[int] = None
 
 
 @dataclass
@@ -284,6 +285,7 @@ class ISMonteCarloOptions:
     mc_refit_global_structure: Optional[bool] = None
     data_per_subject: Optional[Sequence[np.ndarray]] = None
     mc_refit_n_jobs: Optional[int] = None
+    mc_n_jobs: Optional[int] = None
 
 
 @dataclass
@@ -320,6 +322,7 @@ def merge_aggregate_options(
             "mc_posterior",
             "mc_refit_global_structure",
             "mc_refit_n_jobs",
+            "mc_n_jobs",
         ):
             setattr(opts, field_name, getattr(mc, field_name))
     return opts
