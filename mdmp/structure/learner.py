@@ -5,25 +5,38 @@ This module implements the StructureLearner class that coordinates
 various structure learning algorithms.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Type
 
 import numpy as np
 
 from ..utils import get_default_delta
-from .registry import get_algorithm, list_algorithms
+from .algorithms import (
+    BaseLearningAlgorithm,
+    HillClimbingAlgorithm,
+    IpaAlgorithm,
+    MMHCAlgorithm,
+    NotearsAlgorithm,
+    TabuAlgorithm,
+)
+
+METHODS: Dict[str, Type[BaseLearningAlgorithm]] = {
+    "hc": HillClimbingAlgorithm,
+    "tabu": TabuAlgorithm,
+    "mmhc": MMHCAlgorithm,
+    "notears": NotearsAlgorithm,
+    "ipa": IpaAlgorithm,
+}
 
 
 class StructureLearner:
     """
     Structure learning for MDM Bayesian networks.
-
     Supports multiple learning algorithms compatible with MDM scoring functions.
     """
 
     def __init__(self, verbose: bool = True):
         """
         Initialize structure learner.
-
         Parameters
         ----------
         verbose : bool, optional
@@ -38,7 +51,7 @@ class StructureLearner:
         nbf: int = 15,
         delta: Optional[np.ndarray] = None,
         node_names: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ) -> np.ndarray:
         """
         Learn Bayesian network structure from data.
@@ -72,25 +85,16 @@ class StructureLearner:
         if delta is None:
             delta = get_default_delta()
 
-        # Get algorithm from registry
         try:
-            algorithm_class = get_algorithm(method)
-        except ValueError as e:
-            # Provide helpful error message with available algorithms
-            available = list_algorithms()
+            algorithm_class = METHODS[method]
+
+        except KeyError:
             raise ValueError(
                 f"Unknown method: {method}. "
-                f"Available methods: {', '.join(available) if available else 'none'}. "
+                f"Available methods: {', '.join(sorted(METHODS))}. "
                 "Note: Methods h2pc and rsmax2 are not yet implemented."
-            ) from e
+            ) from None
 
-        # Create algorithm instance and learn structure
         algorithm = algorithm_class(verbose=self.verbose)
-        return algorithm.learn(
-            data=data,
-            nbf=nbf,
-            delta=delta,
-            node_names=node_names,
-            **kwargs
-        )
 
+        return algorithm.learn(data=data, nbf=nbf, delta=delta, node_names=node_names, **kwargs)

@@ -9,28 +9,18 @@ from .algorithms import (
     HillClimbingAlgorithm,
     IpaAlgorithm,
     MMHCAlgorithm,
-    TabuAlgorithm,
     NotearsAlgorithm,
+    TabuAlgorithm,
 )
-from .learner import StructureLearner
-from .registry import get_algorithm, list_algorithms, register_algorithm
-
-# Register default algorithms
-register_algorithm("hc", HillClimbingAlgorithm)
-register_algorithm("tabu", TabuAlgorithm)
-register_algorithm("ipa", IpaAlgorithm)  # Registered but not implemented
-register_algorithm("mmhc", MMHCAlgorithm)
-register_algorithm("notears", NotearsAlgorithm)
+from .learner import METHODS, StructureLearner
 
 __all__ = [
     "StructureLearner",
+    "METHODS",
     "BaseLearningAlgorithm",
     "HillClimbingAlgorithm",
     "TabuAlgorithm",
-    # "IpaAlgorithm",
+    "IpaAlgorithm",
     "MMHCAlgorithm",
     "NotearsAlgorithm",
-    "register_algorithm",
-    "get_algorithm",
-    "list_algorithms",
 ]

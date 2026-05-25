@@ -9,6 +9,8 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
+from scipy import stats
 
 from .dlm import dlm_filter, dlm_smooth
 from .utils import (
@@ -165,18 +167,12 @@ def _worker_smooth_node(
     sCt = result['sCt']
 
     # Compute standard errors
-    from scipy import stats
-
     if sCt.ndim == 2:  # Single parameter case
         SE = stats.t.ppf(0.975, nt[i][-1]) * np.sqrt(sCt)
     else:  # Multiple parameters
         SE_array = np.zeros((sCt.shape[2], sCt.shape[0]))
         for j in range(sCt.shape[0]):
-            SE_array[:, j] = (
-                stats.t.ppf(0.975, nt[i][-1]) *
-                np.sqrt(sCt[j, j, :])
-            )
-        import pandas as pd
+            SE_array[:, j] = stats.t.ppf(0.975, nt[i][-1]) * np.sqrt(sCt[j, j, :])
         col_names = [f"SE_{name}" for name in range(sCt.shape[0])]
         SE = pd.DataFrame(SE_array, columns=col_names)
 

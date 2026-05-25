@@ -1,5 +1,5 @@
 """
-Refit MDM pipelines on a fixed DAG (no structure learning).
+Refit MDM on a fixed DAG (no structure learning).
 """
 
 from typing import List, Optional, Sequence, Union
@@ -7,12 +7,11 @@ from typing import List, Optional, Sequence, Union
 import numpy as np
 import pandas as pd
 
+from .._node_dispatch import filter_all_nodes, smooth_all_nodes
+from ..scoring import select_discount_factors
 from ..utils import get_default_delta
 from ..validation import validate_data, validate_delta
-from .discount_selection import DiscountFactorSelector
-from .filtering_pipeline import FilteringPipeline
 from .results import MDMResults
-from .smoothing_pipeline import SmoothingPipeline
 
 
 def refit_mdm_on_structure(
@@ -26,34 +25,32 @@ def refit_mdm_on_structure(
     n_jobs: Optional[int] = None,
 ) -> MDMResults:
     """
-    Run discount-factor selection, filtering, and smoothing on fixed binary ``adj_mat``.
+    Run discount-factor selection, filtering, and smoothing on a fixed binary adj_mat.
 
-    Same numerical pipeline as :class:`mdmp.model.MDM` after structure learning, without
-    calling :class:`mdmp.model.StructureLearningPipeline` or duplicating ``dlm_filter``
-    internals (delegates to :class:`DiscountFactorSelector`, :class:`FilteringPipeline`,
-    :class:`SmoothingPipeline`).
+    Same numerical pipeline as MDM after structure learning, without calling
+    StructureLearner.
 
     Parameters
     ----------
     data : np.ndarray or pd.DataFrame
-        Multivariate time series ``(T, N)``.
+        Multivariate time series (T, N).
     adj_mat : np.ndarray or pd.DataFrame
-        Binary ``(N, N)`` directed adjacency; ``[i, j] == 1`` means parent ``i`` → child ``j``.
+        Binary (N, N) directed adjacency; [i, j] == 1 means parent i → child j.
     node_names : sequence of str, optional
-        Names of length ``N``. If omitted, taken from ``data`` columns or ``V1``…``VN``.
+        Names of length N. If omitted, taken from data columns or V1…VN.
     nbf : int, optional
         Burn-in index for log predictive likelihood during discount selection.
     delta : np.ndarray, optional
-        Discount-factor grid; defaults match :class:`mdmp.model.MDM`.
+        Discount-factor grid.
     verbose : bool, optional
-        Progress messages from pipeline components.
+        Progress messages.
     n_jobs : int, optional
         Parallel workers for discount selection, filtering, and smoothing.
 
     Returns
     -------
     MDMResults
-        ``adj_mat``, ``data``, ``DF``, ``Filt``, ``Smoo``, ``node_names`` aligned with :class:`mdmp.model.MDM`.
+        adj_mat, data, DF, Filt, Smoo, node_names aligned with MDM.
     """
     data_arr, inferred_names = validate_data(data)
     arr = np.asarray(data_arr, dtype=float)
@@ -106,31 +103,33 @@ def refit_mdm_on_structure(
     else:
         validate_delta(delta)
 
-    discount_selector = DiscountFactorSelector(verbose=verbose)
-    filtering_pipeline = FilteringPipeline(verbose=verbose)
-    smoothing_pipeline = SmoothingPipeline(verbose=verbose)
-
-    df_result = discount_selector.select_discount_factors(
-        data=arr,
-        adj_mat=adj_bin,
-        nbf=nbf,
-        delta=delta,
-        n_jobs=n_jobs,
+    if verbose:
+        print("Selecting discount factors...")
+    df_result = select_discount_factors(
+        data=arr, adj_mat=adj_bin, nbf=nbf, delta=delta, n_jobs=n_jobs, verbose=verbose,
     )
-    filt = filtering_pipeline.filter_nodes(
+
+    if verbose:
+        print("Computing filtered estimates...")
+    filt = filter_all_nodes(
         data=arr,
         adj_mat=adj_bin,
         DF_hat=df_result["DF_hat"],
         node_names=list(names_eff),
         n_jobs=n_jobs,
+        verbose=verbose,
     )
-    smoo = smoothing_pipeline.smooth_nodes(
+
+    if verbose:
+        print("Computing smoothed estimates...")
+    smoo = smooth_all_nodes(
         mt=filt["mt"],
         Ct=filt["Ct"],
         Rt=filt["Rt"],
         nt=filt["nt"],
         dt=filt["dt"],
         n_jobs=n_jobs,
+        verbose=verbose,
     )
 
     return MDMResults(

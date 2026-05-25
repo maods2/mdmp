@@ -10,7 +10,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 if TYPE_CHECKING:
-    from ..model import MDM
+    pass
 
 
 def _hierarchical_layout(
@@ -73,7 +73,7 @@ def plot_dag(
     Parameters
     ----------
     mdm_object
-        Typically :class:`mdmp.model.MDM`, or :class:`mdmp.group_analysis.is.aggregation.ISAggregatedMDMView`
+        Typically :class:`mdmp.model.MDM`, or :class:`mdmp.group_analysis.ISAggregatedMDMView`
         / the return value of :func:`mdmp.group_analysis.aggregate_individual_structures`
         (needs ``adj_mat`` and optionally ``node_names``).
     node_labels : list of str, optional

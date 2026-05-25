@@ -55,14 +55,14 @@ print("=" * 60)
 
 # Mean-based VTS (subject-level mean, then group mean)
 result_mean = compute_vts(aligned_3d, method="mean")
-print(f"\nMean-based VTS:")
+print("\nMean-based VTS:")
 print(f"  Shape: {result_mean.vts_data.shape}")
 print(f"  Method: {result_mean.method}")
 print(f"  N subjects: {result_mean.n_subjects}")
 
 # Concatenation-based VTS (concatenate along time, return series for MDM)
 result_concat = compute_vts(multi_subject_list, method="concatenation")
-print(f"\nConcatenation-based VTS (return_series=True):")
+print("\nConcatenation-based VTS (return_series=True):")
 print(f"  Shape: {result_concat.vts_data.shape}")
 print(f"  Method: {result_concat.method}")
 
@@ -70,7 +70,7 @@ print(f"  Method: {result_concat.method}")
 result_concat_summary = compute_vts(
     multi_subject_list, method="concatenation", return_series=False
 )
-print(f"\nConcatenation-based VTS (return_series=False, summary):")
+print("\nConcatenation-based VTS (return_series=False, summary):")
 print(f"  Shape: {result_concat_summary.vts_data.shape}")
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ import numpy as np
 
 from mdmp.progress import TQDM_AVAILABLE, get_progress_bar, process_map_with_progress
 from mdmp.scoring import select_discount_factors
-from mdmp.utils import DEFAULT_NBF
+from mdmp.constants import DEFAULT_NBF
 
 
 def test_get_progress_bar_basic():

@@ -1,7 +1,6 @@
 """Smoke tests for ``refit_mdm_on_structure``."""
 
 import numpy as np
-import pytest
 
 from mdmp.model import refit_mdm_on_structure
 

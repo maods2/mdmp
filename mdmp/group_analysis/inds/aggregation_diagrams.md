@@ -1,8 +1,51 @@
 # Individual Structure (IS) aggregation — logic diagrams
 
+## Statistical Interpretation (reference)
+
+Before reading the diagrams, keep three distinctions in mind:
+
+| Claim | What the code actually computes |
+|---|---|
+| "global effect" of edge p→c | **Conditional** mean E\[θ\|edge=1\]: only subjects expressing the edge contribute; absent subjects are excluded from both numerator and divisor |
+| "posterior credible interval" | MC uncertainty from **independent** per-subject DLM posteriors; **not** a joint hierarchical posterior; no shrinkage, no between-subject covariance |
+| "structural uncertainty" | G\* is **fixed** before any MC; inference is p(θ\|G\*); structural uncertainty is **not** propagated |
+
+**Pooling semantics.**
+`pooling='conditional_mean_among_edge_subjects'` (legacy alias `'mean_with_edge'`):
+
+```
+θ̄_t^(b) = (1/A) Σ_{i ∈ 𝒜} θ_{i,t}^(b)
+```
+
+where 𝒜 = subjects whose individual DAG contained edge p→c, A = |𝒜|.
+This estimates E\[θ_{pc,t} | edge_{pc} = 1\], **not** the unconditional population mean (1/S) Σ_i θ_{i,t}^(b).
+
+**Smoothed samples.**
+When `mc_posterior='smoothed'`, the code uses smoothed moments (smt, sCt) together with filtered (nt, dt) at the same time index — a pragmatic approximation, not the exact full smoothing posterior.
+
 Diagramas em [Mermaid](https://mermaid.js.org/). Pré-visualize no GitHub, VS Code (extensão Mermaid), ou [mermaid.live](https://mermaid.live).
 
-## 1. Visão geral: `aggregate_individual_structures`
+## 1. Pipeline (`inds.pipeline.aggregate_individual_structures`)
+
+```mermaid
+flowchart TD
+  V[validate] --> C[coerce]
+  C --> VC[validate_coerced]
+  VC --> Vote[vote_edge_frequencies]
+  Vote --> Repair[repair_dag_to_acyclic]
+  Repair --> View[ISAggregatedMDMView]
+  View --> Refit{refit on G*?}
+  Refit -->|"None + MDM → auto"| R[build_mc_inputs / refit]
+  Refit -->|False or adj-only| MCgate{mc_n_samples > 0?}
+  R --> MCgate
+  MCgate -->|yes| MC[_monte_carlo_global_edge_beta]
+  MCgate -->|no| Filt[_finalize_mdm_view]
+  MC --> Filt
+```
+
+Public API: `aggregate_individual_structures` only.
+
+## 2. Visão geral: `aggregate_individual_structures`
 
 ```mermaid
 flowchart LR
@@ -19,11 +62,11 @@ flowchart LR
     C1{Todos MDM-like?}
     C2["Extrair adj: (adj_mat > 0)"]
     C3["Opcional: Filt de cada m"]
-    C4["Opcional: plot_data = média dos data"]
+    C4["Opcional: time_series = média dos data"]
   end
 
   subgraph val["3. Validar"]
-    V["Adj binárias N×N; node_names; plot_data (T,N)"]
+    V["Adj binárias N×N; node_names; time_series (T,N)"]
   end
 
   subgraph vote["4. Voto + DAG"]
@@ -41,7 +84,7 @@ flowchart LR
   subgraph opt["Opcional"]
     PF["pool_filt / plot_filt → Filt global para plots"]
     RF["mc_refit_global_structure → refit MDM na DAG global"]
-    MC["n_draws > 0 → global_beta_mc"]
+    MC["mc_n_samples > 0 → global_beta_mc"]
   end
 
   M --> norm --> coerce
@@ -104,7 +147,7 @@ flowchart TD
     subgraph samp["Amostragem por sujeito"]
       Si["Para cada sujeito i"]
       Nj["Para cada nó filho c"]
-      Draw["Amostrar estado em t (filtro ou smooth + nt/dt)"]
+      Samp["Amostrar estado em t (filtro ou smooth + nt/dt)"]
     end
 
     subgraph pool["Agregar por aresta global e ∈ E"]
@@ -116,10 +159,9 @@ flowchart TD
   end
 
   subgraph post["Depois das B réplicas"]
-    BD["beta_draws: eixo 0 = b"]
+    BD["beta_samples: eixo 0 = b"]
     MV["beta_mean, beta_var nan-aware no eixo b"]
-    T1["Um t: forma B × |E|"]
-    Tk["time_indices: forma B × |E| × |T|"]
+    Tk["Todos os tempos 0…T-1: forma B × |E| × |T|"]
     Q["mc_quantiles → beta_quantiles ao longo do eixo b"]
   end
 
@@ -149,8 +191,8 @@ flowchart LR
 
 ## Referência no código
 
-- Orquestração: `aggregate_individual_structures` em `aggregation.py`
+- Orquestração: `aggregate_individual_structures` em `pipeline.py`
 - Voto + ciclos: `_vote_threshold_and_repair_cycles`, `_remove_lowest_freq_cycle_edge`
 - Refit estrutura fixa: `mdmp.model.refit_mdm_on_structure`
-- MC: `_monte_carlo_global_edge_beta`, `_monte_carlo_beta_draws_at_time`, `_sample_dlm_state_posterior`
+- MC: `_monte_carlo_global_edge_beta`, `_monte_carlo_beta_samples_at_time`, `_sample_dlm_state_posterior`
 - Filt agregado para plots: `build_plot_filt_from_subjects`

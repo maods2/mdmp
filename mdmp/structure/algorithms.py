@@ -6,14 +6,42 @@ using the Strategy pattern.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 
-from ..scoring import compute_structure_score
 from .scoring import MdmStructureScore
 from .utils import extract_adjacency_from_model
+
+
+def _build_pgmpy_score(df, node_names, nbf):
+    """Wrap MdmStructureScore for pgmpy compatibility.
+
+    Returns (df, columns, score_wrapper) ready to pass to a pgmpy estimator.
+    """
+    try:
+        from pgmpy.estimators import StructureScore
+    except ImportError as exc:
+        raise ImportError(
+            "pgmpy is required for structure learning. Install with `pip install pgmpy`."
+        ) from exc
+    except AttributeError as exc:
+        raise _pgmpy_import_error_hint(exc) from exc
+
+    N = df.shape[1]
+    columns = list(node_names) if node_names is not None else [f"V{i+1}" for i in range(N)]
+    mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
+
+    class _Wrapper(StructureScore):
+        def __init__(self, df_input, mdm_score):
+            super().__init__(df_input)
+            self._mdm_score = mdm_score
+
+        def local_score(self, variable, parents):
+            return self._mdm_score.local_score(variable, parents)
+
+    return columns, _Wrapper(df, mdm_score_obj)
 
 
 def _preload_torch_for_pgmpy() -> None:
@@ -49,8 +77,7 @@ class BaseLearningAlgorithm(ABC):
     Base class for structure learning algorithms.
 
     All learning algorithms should inherit from this class and implement
-    the `learn` method. The `compute_score` method provides a default
-    implementation that can be overridden if needed.
+    the `learn` method.
     """
 
     def __init__(self, verbose: bool = True):
@@ -95,81 +122,6 @@ class BaseLearningAlgorithm(ABC):
             Adjacency matrix (N x N).
         """
         pass
-
-    def compute_score(
-        self,
-        data: np.ndarray,
-        adj_mat: np.ndarray,
-        nbf: int,
-        delta: np.ndarray,
-        cache: Optional[Dict[str, Any]] = None
-    ) -> float:
-        """
-        Compute structure score (default implementation).
-
-        This method provides a default implementation using the unified
-        scoring function. Algorithms can override this if they need
-        custom scoring behavior.
-
-        Parameters
-        ----------
-        data : np.ndarray
-            Time series data (T x N).
-        adj_mat : np.ndarray
-            Adjacency matrix (N x N).
-        nbf : int
-            Burn-in time point.
-        delta : np.ndarray
-            Sequence of discount factors.
-        cache : dict, optional
-            Optional cache for score computations.
-
-        Returns
-        -------
-        float
-            Total structure score.
-        """
-        return compute_structure_score(data, adj_mat, nbf=nbf, delta=delta, cache=cache)
-
-    def _has_cycle(self, adj_mat: np.ndarray) -> bool:
-        """
-        Check if adjacency matrix contains cycles (detect DAG violations).
-
-        Parameters
-        ----------
-        adj_mat : np.ndarray
-            Adjacency matrix.
-
-        Returns
-        -------
-        bool
-            True if cycle exists, False otherwise.
-        """
-        N = adj_mat.shape[0]
-        visited = [False] * N
-        rec_stack = [False] * N
-
-        def has_cycle_util(node):
-            visited[node] = True
-            rec_stack[node] = True
-
-            for neighbor in range(N):
-                if adj_mat[node, neighbor] == 1:
-                    if not visited[neighbor]:
-                        if has_cycle_util(neighbor):
-                            return True
-                    elif rec_stack[neighbor]:
-                        return True
-
-            rec_stack[node] = False
-            return False
-
-        for node in range(N):
-            if not visited[node]:
-                if has_cycle_util(node):
-                    return True
-
-        return False
 
 
 class PgmpyAlgorithmMixin:
@@ -257,7 +209,7 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         """
         _preload_torch_for_pgmpy()
         try:
-            from pgmpy.estimators import HillClimbSearch, StructureScore
+            from pgmpy.estimators import HillClimbSearch
         except ImportError as exc:
             raise ImportError(
                 "pgmpy is required for hill-climbing algorithm. "
@@ -267,26 +219,10 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
             raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
-
-        # Create MDM structure score
-        mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
-
-        # Wrap in StructureScore for pgmpy compatibility
-        class MdmStructureScoreWrapper(StructureScore):
-            def __init__(self, df_input, mdm_score):
-                super().__init__(df_input)
-                self._mdm_score = mdm_score
-
-            def local_score(self, variable, parents):
-                return self._mdm_score.local_score(variable, parents)
-
-        mdm_score = MdmStructureScoreWrapper(df, mdm_score_obj)
-
-        hc_kwargs = self._clean_kwargs(kwargs)
-
-        hc = HillClimbSearch(df)
-        model = hc.estimate(scoring_method=mdm_score, **hc_kwargs)
-
+        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
+        model = HillClimbSearch(df).estimate(
+            scoring_method=mdm_score, **self._clean_kwargs(kwargs)
+        )
         return extract_adjacency_from_model(model, columns)
 
 
@@ -337,7 +273,7 @@ class TabuAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         """
         _preload_torch_for_pgmpy()
         try:
-            from pgmpy.estimators import HillClimbSearch, StructureScore
+            from pgmpy.estimators import HillClimbSearch
         except ImportError as exc:
             raise ImportError(
                 "pgmpy is required for tabu search algorithm. "
@@ -347,29 +283,11 @@ class TabuAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
             raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
-
-        # Create MDM structure score
-        mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
-
-        # Wrap in StructureScore for pgmpy compatibility
-        class MdmStructureScoreWrapper(StructureScore):
-            def __init__(self, df_input, mdm_score):
-                super().__init__(df_input)
-                self._mdm_score = mdm_score
-
-            def local_score(self, variable, parents):
-                return self._mdm_score.local_score(variable, parents)
-
-        mdm_score = MdmStructureScoreWrapper(df, mdm_score_obj)
-
-        # Set default tabu_length if not provided
+        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
         tabu_kwargs = self._clean_kwargs(kwargs)
         if "tabu_length" not in tabu_kwargs:
             tabu_kwargs["tabu_length"] = 100
-
-        hc = HillClimbSearch(df)
-        model = hc.estimate(scoring_method=mdm_score, **tabu_kwargs)
-
+        model = HillClimbSearch(df).estimate(scoring_method=mdm_score, **tabu_kwargs)
         return extract_adjacency_from_model(model, columns)
 
 
@@ -400,7 +318,7 @@ class MMHCAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         """
         _preload_torch_for_pgmpy()
         try:
-            from pgmpy.estimators import MmhcEstimator, StructureScore
+            from pgmpy.estimators import MmhcEstimator
         except ImportError as exc:
             raise ImportError(
                 "pgmpy is required for MMHC algorithm. "
@@ -410,27 +328,10 @@ class MMHCAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
             raise _pgmpy_import_error_hint(exc) from exc
 
         df, columns = self._prepare_dataframe(data, node_names)
-
-        # Create MDM structure score
-        mdm_score_obj = MdmStructureScore(df, nbf_value=nbf)
-
-        # Wrap in StructureScore for pgmpy compatibility
-        class MdmStructureScoreWrapper(StructureScore):
-            def __init__(self, df_input, mdm_score):
-                super().__init__(df_input)
-                self._mdm_score = mdm_score
-
-            def local_score(self, variable, parents):
-                return self._mdm_score.local_score(variable, parents)
-
-        mdm_score = MdmStructureScoreWrapper(df, mdm_score_obj)
-
-        # Extract MMHC-specific kwargs
-        mmhc_kwargs = self._clean_kwargs(kwargs)
-
-        mmhc = MmhcEstimator(df)
-        model = mmhc.estimate(scoring_method=mdm_score, **mmhc_kwargs)
-
+        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
+        model = MmhcEstimator(df).estimate(
+            scoring_method=mdm_score, **self._clean_kwargs(kwargs)
+        )
         return extract_adjacency_from_model(model, columns)
 
 

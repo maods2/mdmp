@@ -1,9 +1,29 @@
 """Adjacency normalization, validation, and MDM-like subject coercion."""
 
+from dataclasses import dataclass
 from typing import Any, List, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
+
+
+@dataclass
+class _PreparedSubjects:
+    """
+    Normalized per-subject inputs after coercion (one row per subject).
+
+    Fields here are the **resolved** values used by the pipeline: caller
+    arguments may be ``None`` and are filled from fitted MDM objects when
+    applicable (see ``_coerce_subjects_for_aggregation``).
+    """
+
+    arrays: List[np.ndarray]
+    names: List[str]
+    n_subjects: int
+    n_nodes: int
+    posterior_per_subject: Optional[Sequence[Mapping[str, Any]]]
+    time_series: Optional[np.ndarray]
+    mdm_data_per_subject: Optional[List[np.ndarray]]
 
 
 def _as_float_matrix(adj: Union[np.ndarray, pd.DataFrame]) -> Tuple[np.ndarray, Optional[List[str]]]:
@@ -87,16 +107,14 @@ def _is_fitted_mdm_like(obj: Any) -> bool:
 
         if isinstance(obj, _MDM):
             return True
-    except Exception:
+    except ImportError:
         pass
-    try:
-        if getattr(obj, "adj_mat", None) is None:
-            return False
-        if getattr(obj, "Filt", None) is None:
-            return False
-        if getattr(obj, "node_names", None) is None:
-            return False
-    except Exception:
+    # Duck-typed fallback: check for MDM-like attributes
+    if getattr(obj, "adj_mat", None) is None:
+        return False
+    if getattr(obj, "Filt", None) is None:
+        return False
+    if getattr(obj, "node_names", None) is None:
         return False
     return True
 
@@ -129,11 +147,7 @@ def _materialize_subjects_list(subjects: Sequence[Any]) -> List[Any]:
 def _coerce_subjects_for_aggregation(
     subjects: Sequence[Any],
     node_names: Optional[Sequence[str]],
-    filtered_per_subject: Optional[Sequence[Mapping[str, Any]]],
-    plot_data: Optional[np.ndarray],
-    *,
-    pool_filt_for_plotting: bool,
-    n_draws: int,
+    posterior_per_subject: Optional[Sequence[Mapping[str, Any]]],
 ) -> Tuple[
     Sequence[Union[np.ndarray, pd.DataFrame]],
     Optional[Sequence[str]],
@@ -142,17 +156,22 @@ def _coerce_subjects_for_aggregation(
     Optional[List[np.ndarray]],
 ]:
     """
-    If ``subjects`` are MDM-like, build adjacency list and optionally fill
-    ``filtered_per_subject`` / ``plot_data`` from each model.
+    If ``subjects`` are MDM-like, build adjacency list and fill
+    ``posterior_per_subject`` / mean ``time_series`` from each model.
 
-    Returns the original coercion triple plus ``data_per_subject`` (each ``(T,N)``
-    float array for fitted MDMs; ``None`` for plain adjacency inputs).
+    ``posterior_per_subject`` is only accepted on split APIs (e.g.
+    :func:`aggregate_individual_structures`
+    derives filters from MDMs only.
+
+    Returns adjacency list, node names, **resolved** filtered states,
+    **resolved** group ``(T, N)`` time series, and per-subject data arrays
+    (``None`` for plain adjacency-only inputs).
     """
     subjects_list = _materialize_subjects_list(subjects)
 
     kind = _subject_sequence_kind(subjects_list)
     if kind == "adj":
-        return subjects_list, node_names, filtered_per_subject, plot_data, None
+        return subjects_list, node_names, posterior_per_subject, None, None
 
     mdms: List[Any] = subjects_list
     names_ref = [str(x) for x in mdms[0].node_names]
@@ -176,31 +195,35 @@ def _coerce_subjects_for_aggregation(
         np.fill_diagonal(b, 0)
         adjs.append(b)
 
-    filt_eff = filtered_per_subject
-    if filt_eff is None and (pool_filt_for_plotting or n_draws > 0):
-        filt_eff = [m.Filt for m in mdms]
+    resolved_posterior = (
+        posterior_per_subject if posterior_per_subject is not None else [m.Filt for m in mdms]
+    )
 
-    plot_eff = plot_data
-    if plot_eff is None and pool_filt_for_plotting:
-        datas = [np.asarray(m.data, dtype=float) for m in mdms]
-        shapes = {d.shape for d in datas}
-        if len(shapes) == 1:
-            plot_eff = np.mean(np.stack(datas, axis=0), axis=0)
+    datas = [np.asarray(m.data, dtype=float) for m in mdms]
+    shapes = {d.shape for d in datas}
+    resolved_time_series: Optional[np.ndarray] = None
+    if len(shapes) == 1:
+        resolved_time_series = np.mean(np.stack(datas, axis=0), axis=0)
 
-    data_per_subject = [np.asarray(m.data, dtype=float) for m in mdms]
+    data_per_subject = datas
 
-    return adjs, node_names if node_names is not None else names_ref, filt_eff, plot_eff, data_per_subject
+    return (
+        adjs,
+        node_names if node_names is not None else names_ref,
+        resolved_posterior,
+        resolved_time_series,
+        data_per_subject,
+    )
 
 
 def _normalize_first_argument(adj_mats: Any) -> Any:
     """Wrap a single MDM or single 2D adjacency matrix as a one-element sequence."""
     try:
         from ...model import MDM as _MDM
-    except Exception:  # pragma: no cover
-        _MDM = None
-
-    if _MDM is not None and isinstance(adj_mats, _MDM):
-        return [adj_mats]
+        if isinstance(adj_mats, _MDM):
+            return [adj_mats]
+    except ImportError:  # pragma: no cover
+        pass
     if isinstance(adj_mats, np.ndarray) and adj_mats.ndim == 2:
         return [adj_mats]
     return adj_mats

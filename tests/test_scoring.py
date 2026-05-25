@@ -5,7 +5,7 @@ Tests for scoring functions (discount factor selection).
 import numpy as np
 
 from mdmp.scoring import compute_logpl, select_discount_factors
-from mdmp.utils import DEFAULT_NBF
+from mdmp.constants import DEFAULT_NBF
 
 
 def test_select_discount_factors_basic(sample_data, small_dag_adjacency, default_delta):

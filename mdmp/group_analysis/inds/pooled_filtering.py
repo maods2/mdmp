@@ -6,25 +6,32 @@ import numpy as np
 import pandas as pd
 
 from ...utils import build_design_matrix, build_parameter_names
-from .adj_coercion import _to_binary_adj
+from .coercion import _to_binary_adj
 
 
 def build_plot_filt_from_subjects(
     global_adj: np.ndarray,
-    filtered_per_subject: Sequence[Mapping[str, Any]],
+    posterior_per_subject: Sequence[Mapping[str, Any]],
     adj_per_subject: Sequence[Union[np.ndarray, pd.DataFrame]],
     node_names: Sequence[str],
 ) -> Dict[str, Any]:
     """
-    Build a ``Filt``-shaped dict on a **global** adjacency by pooling per-subject
-    filtered posteriors (mean of ``mt`` / diagonal ``Ct``, mean of ``nt`` / ``dt``).
+    Build a ``Filt``-shaped dict on the consensus DAG by conditionally pooling
+    per-subject filtered posteriors (mean of ``mt`` / diagonal ``Ct``, mean of
+    ``nt`` / ``dt``).
 
-    For each child node and each regression coefficient aligned with the global
-    parent ordering, only subjects whose individual DAG contains the same
-    directed parent edge contribute to that coefficient's pooled series.
+    **Conditional pooling.**  For each child node and each regression coefficient
+    aligned with the global parent ordering, only subjects whose individual DAG
+    contains the same directed parent edge contribute to that coefficient's
+    pooled series.  **Subjects without the edge do not contribute to the pooled
+    coefficient and are excluded from the divisor.**  This is a conditional
+    mean, analogous to ``pooling='conditional_mean_among_edge_subjects'`` in
+    Monte Carlo aggregation.
 
-    This is a plug-in summary for visualization (e.g. :func:`mdmp.plotting.plot_arcs`);
-    it is not a joint Bayesian posterior on the global graph.
+    **Visualization only.**  The returned dict is a plug-in summary for
+    :func:`mdmp.plotting.plot_arcs` and related routines.  It is **not** a
+    joint Bayesian posterior on the global graph, and it does not propagate
+    structural uncertainty.
     """
     arrays: List[np.ndarray] = []
     for raw in adj_per_subject:
@@ -38,13 +45,13 @@ def build_plot_filt_from_subjects(
             f"global_adj shape {ga.shape} must match subject adjacencies {arrays[0].shape}"
         )
 
-    s_sub = len(filtered_per_subject)
+    s_sub = len(posterior_per_subject)
     if len(arrays) != s_sub:
         raise ValueError(
-            f"adj_per_subject length {len(arrays)} must match filtered_per_subject length {s_sub}"
+            f"adj_per_subject length {len(arrays)} must match posterior_per_subject length {s_sub}"
         )
 
-    T = int(np.asarray(filtered_per_subject[0]["mt"][0]).shape[-1])
+    T = int(np.asarray(posterior_per_subject[0]["mt"][0]).shape[-1])
     dummy = np.zeros((T, n), dtype=float)
     str_names: List[str] = [str(x) for x in node_names]
     if len(str_names) != n:
@@ -66,15 +73,15 @@ def build_plot_filt_from_subjects(
 
         for t in range(T):
             n_vec[t] = float(
-                np.mean([float(f["nt"][c][t]) for f in filtered_per_subject])
+                np.mean([float(f["nt"][c][t]) for f in posterior_per_subject])
             )
             d_vec[t] = float(
-                np.mean([float(f["dt"][c][t]) for f in filtered_per_subject])
+                np.mean([float(f["dt"][c][t]) for f in posterior_per_subject])
             )
             for j in range(p):
                 mvals: List[float] = []
                 cvals: List[float] = []
-                for si, filt in enumerate(filtered_per_subject):
+                for si, filt in enumerate(posterior_per_subject):
                     adj_s = arrays[si]
                     _, pl_s = build_design_matrix(dummy, adj_s, c)
                     mt_s = np.asarray(filt["mt"][c], dtype=float)

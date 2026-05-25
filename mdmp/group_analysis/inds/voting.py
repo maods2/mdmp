@@ -63,19 +63,16 @@ def _remove_lowest_freq_cycle_edge(
     return (i, j)
 
 
-def _vote_threshold_and_repair_cycles(
+def vote_edge_frequencies(
     subject_adjs: List[np.ndarray],
     tau: float,
-    node_names: List[str],
     *,
     threshold_mode: ThresholdMode = "strict",
-) -> Tuple[np.ndarray, Dict[str, Any]]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Edge-wise vote against ``tau``, then greedy lowest-frequency cycle-edge removal until acyclic.
+    Compute empirical edge counts/frequencies and thresholded candidate adjacency.
 
-    Strict mode keeps edges with frequency **strictly greater** than ``tau``
-    (historical default). Inclusive mode keeps edges with frequency **greater
-    than or equal** to ``tau``.
+    Returns ``(candidate_adj, edge_counts, edge_frequencies)`` before acyclic repair.
     """
     s = len(subject_adjs)
     stack = np.stack(subject_adjs, axis=0)
@@ -90,7 +87,20 @@ def _vote_threshold_and_repair_cycles(
     else:
         raise ValueError(f"threshold_mode must be 'strict' or 'inclusive', got {threshold_mode!r}")
     np.fill_diagonal(adj, 0)
+    return adj, edge_counts, edge_frequencies
 
+
+def repair_dag_to_acyclic(
+    candidate_adj: np.ndarray,
+    edge_frequencies: np.ndarray,
+    node_names: List[str],
+) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
+    """
+    Greedy lowest-frequency cycle-edge removal until the graph is a DAG.
+
+    Mutates a copy of ``candidate_adj``.
+    """
+    adj = candidate_adj.copy()
     removed: List[Dict[str, Any]] = []
     while True:
         dropped = _remove_lowest_freq_cycle_edge(adj, edge_frequencies)
@@ -106,12 +116,33 @@ def _vote_threshold_and_repair_cycles(
                 "frequency": float(edge_frequencies[i, j]),
             }
         )
+    return adj.astype(np.float64), removed
 
-    out_adj = adj.astype(np.float64)
+
+def _vote_threshold_and_repair_cycles(
+    subject_adjs: List[np.ndarray],
+    tau: float,
+    node_names: List[str],
+    *,
+    threshold_mode: ThresholdMode = "strict",
+) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """
+    Edge-wise vote against ``tau``, then greedy lowest-frequency cycle-edge removal until acyclic.
+
+    Strict mode keeps edges with frequency **strictly greater** than ``tau``
+    (historical default). Inclusive mode keeps edges with frequency **greater
+    than or equal** to ``tau``.
+    """
+    candidate, edge_counts, edge_frequencies = vote_edge_frequencies(
+        subject_adjs, tau, threshold_mode=threshold_mode
+    )
+    out_adj, removed = repair_dag_to_acyclic(candidate, edge_frequencies, node_names)
     meta: Dict[str, Any] = {
         "edge_counts": edge_counts,
         "edge_frequencies": edge_frequencies.copy(),
         "edges_removed_for_acyclicity": removed,
         "threshold_mode": threshold_mode,
+        "graph_repair_strategy": "greedy_lowest_frequency_edge",
+        "conditioning": "fixed_consensus_dag",
     }
     return out_adj, meta
