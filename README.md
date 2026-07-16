@@ -598,7 +598,7 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 
 ### Group analysis (`mdmp.group_analysis`)
 
-Group-level tools live under **`mdmp.group_analysis`**: **VTS** (Virtual Typical Subject — representative time series) and **IS** (Individual Structure — aggregate subject DAGs). The root package also re-exports the main entry points.
+Group-level tools live under **`mdmp.group_analysis`**: **VTS** (Virtual Typical Subject — representative time series), **IS** (Individual Structure — aggregate subject DAGs), and **distance** (pairwise subject dissimilarity / group-structure method). The root package also re-exports the main entry points.
 
 **Virtual Typical Subject (VTS)** — multi-subject multivariate time series:
 
@@ -631,7 +631,17 @@ fig2 = plot_arcs(result, plot_type="connections")
 # result.global_beta_mc — inferential edge coefficients; not the same as pooled Filt
 ```
 
-See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/05-is-aggregation.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).
+**Group-structure (GS) distance** — per-subject MDM estimates and pairwise dissimilarity for clustering / embedding (`mdmp.group_analysis.distance`):
+
+```python
+from mdmp import fit_individual_structures, compute_mdm_distance, plot_group_embedding
+
+inds = fit_individual_structures(subjects)          # stage 1
+dist = compute_mdm_distance(inds)                   # stages 2–3
+fig = plot_group_embedding(dist, technique="nmds")    # stage 5
+```
+
+See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/05-is-aggregation.ipynb`, `notebooks/08-gs-distance-projection.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).
 
 ## API Reference
 

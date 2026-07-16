@@ -18,12 +18,29 @@ from .group_analysis import (
     ISAggregatedMDMView,
     ISAggregationResult,
     MCPosteriorSource,
+    MDMDistanceResult,
     VTSResult,
     aggregate_individual_structures,
+    bayes_factor_cut,
+    compute_mdm_distance,
     compute_vts,
+    fit_individual_structures,
+    nearest_neighbours,
+    silhouette,
+    suggest_clusters,
 )
 from .model import MDM, refit_mdm_on_structure
-from .plotting import plot_arcs, plot_dag, plot_idag, plot_marginal, plot_stream
+from .plotting import (
+    plot_arcs,
+    plot_dag,
+    plot_dendrogram,
+    plot_group_embedding,
+    plot_idag,
+    plot_marginal,
+    plot_projection,
+    plot_stream,
+    project_distance,
+)
 from .scoring import compute_logpl, select_discount_factors
 from .structure import StructureLearner
 from .validation import validate_multi_subject_data
@@ -71,5 +88,18 @@ __all__ = [
     "ISAggregatedMDMView",
     "MCPosteriorSource",
     "validate_multi_subject_data",
+
+    # Group-structure distance + projection
+    "fit_individual_structures",
+    "compute_mdm_distance",
+    "MDMDistanceResult",
+    "nearest_neighbours",
+    "silhouette",
+    "suggest_clusters",
+    "bayes_factor_cut",
+    "project_distance",
+    "plot_projection",
+    "plot_dendrogram",
+    "plot_group_embedding",
 ]
 

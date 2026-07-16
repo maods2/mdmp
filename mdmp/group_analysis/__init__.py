@@ -78,6 +78,28 @@ from .inds import (
 
 
 
+from .distance import (
+
+    MDMDistanceResult,
+
+    METRIC_REGISTRY,
+
+    bayes_factor_cut,
+
+    compute_mdm_distance,
+
+    fit_individual_structures,
+
+    nearest_neighbours,
+
+    silhouette,
+
+    suggest_clusters,
+
+)
+
+
+
 __all__ = [
 
     "compute_vts",
@@ -115,6 +137,22 @@ __all__ = [
     "ConditionalEdgePosteriorResult",
 
     "MCPosteriorSource",
+
+    "fit_individual_structures",
+
+    "compute_mdm_distance",
+
+    "MDMDistanceResult",
+
+    "METRIC_REGISTRY",
+
+    "nearest_neighbours",
+
+    "silhouette",
+
+    "suggest_clusters",
+
+    "bayes_factor_cut",
 
 ]
 
