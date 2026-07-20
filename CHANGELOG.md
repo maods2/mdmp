@@ -7,35 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
-
-- Remove split IS entry points: `vote_individual_structures`,
-  `run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`,
-  `aggregate_with_options`, and `refit_on_consensus` from the public API.
-  Use `aggregate_individual_structures` only.
-
-### Changed
-
-- `aggregate_individual_structures`: `mc_refit_global_structure=None` (default) refits
-  on the consensus DAG when inputs are MDM-like; pass `False` for the previous
-  individual-DAG filtered posterior path.
-- Global-beta Monte Carlo always runs at every filter time step ``0 … T-1``;
-  removed `time_index` / `time_indices` from the public aggregate API
-  (`beta_samples` shape ``(mc_n_samples, n_edges, T)``).
-- Rename ``GlobalBetaMCResult.beta_draws`` to ``beta_samples`` (aligned with
-  ``mc_n_samples`` and internal ``_sample_*`` helpers).
-- Monte Carlo uses only population-mean pooling
-  (:math:`\\bar\\theta_t^{(b)} = \\frac{1}{S}\\sum_i \\theta_{it}^{(b)}` per
-  replicate); removed ``pooling``, ``mc_contributors``, and conditional
-  ``mean_with_edge`` / ``sum_with_edge`` modes.
-- Vote stage builds `ISAggregatedMDMView` directly; the aggregate path no longer
-  converts consensus → view mid-pipeline.
-- Rename internal ``filtered_per_subject`` to ``posterior_per_subject`` (and
-  ``resolved_filtered_*`` to ``resolved_posterior_*``) across IS coercion, MC, and
-  plot-pooling helpers.
-- Speed up global-beta Monte Carlo: vectorized replicate sampling, edge coefficient
-  index precomputation, and optional parallelism over time.
-
 ### Added
 
 - `aggregate_individual_structures`: `mc_n_jobs` to parallelize Monte Carlo over filter
@@ -72,11 +43,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Remove split IS entry points: `vote_individual_structures`,
+  `run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`,
+  `aggregate_with_options`, and `refit_on_consensus` from the public API.
+  Use `aggregate_individual_structures` only.
 - Remove unused `BaseLearningAlgorithm.compute_score` and `_has_cycle`, and
   `mdmp.scoring.compute_structure_score` (only used by the removed method).
 
 ### Changed
 
+- `aggregate_individual_structures`: `mc_refit_global_structure=None` (default) refits
+  on the consensus DAG when inputs are MDM-like; pass `False` for the previous
+  individual-DAG filtered posterior path.
+- Global-beta Monte Carlo always runs at every filter time step ``0 … T-1``;
+  removed `time_index` / `time_indices` from the public aggregate API
+  (`beta_samples` shape ``(mc_n_samples, n_edges, T)``).
+- Rename ``GlobalBetaMCResult.beta_draws`` to ``beta_samples`` (aligned with
+  ``mc_n_samples`` and internal ``_sample_*`` helpers).
+- Monte Carlo uses only population-mean pooling
+  (:math:`\\bar\\theta_t^{(b)} = \\frac{1}{S}\\sum_i \\theta_{it}^{(b)}` per
+  replicate); removed ``pooling``, ``mc_contributors``, and conditional
+  ``mean_with_edge`` / ``sum_with_edge`` modes.
+- Vote stage builds `ISAggregatedMDMView` directly; the aggregate path no longer
+  converts consensus → view mid-pipeline.
+- Rename internal ``filtered_per_subject`` to ``posterior_per_subject`` (and
+  ``resolved_filtered_*`` to ``resolved_posterior_*``) across IS coercion, MC, and
+  plot-pooling helpers.
+- Speed up global-beta Monte Carlo: vectorized replicate sampling, edge coefficient
+  index precomputation, and optional parallelism over time.
 - Simplify `aggregate_individual_structures`: inputs are adjacency matrices/DataFrames
   or fitted MDMs only; strict edge voting is fixed; MDM inputs auto-run Monte Carlo
   (`mc_n_samples` default 500) and auto-build pooled `Filt` for `plot_arcs`; removed
@@ -118,6 +112,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `build_design_matrix` when `adj_mat` uses floating dtypes (parameter counts
   must be integers).
 
+## [0.7.0] - 2026-07-11
+
+### Added
+
+- Add `mdmp.group_analysis.distance` subpackage for group-structure (GS) pairwise
+  subject dissimilarity.
+- Add `fit_individual_structures` to estimate one MDM per subject (workflow stage 1).
+- Add `compute_mdm_distance` for the pairwise separation matrix (stages 2–3),
+  accepting raw time-series arrays or pre-fitted MDM objects.
+- Add `MDMDistanceResult` with dense, labelled, sparse, linkage, and cluster-cutting
+  helpers (`to_frame`, `to_sparse`, `to_linkage`, `cluster_labels`, `to_similarity`).
+- Add pluggable pairwise metrics via `METRIC_REGISTRY`: `lpl_separation` (default),
+  `structural_hamming`, and `strength_frobenius`.
+- Add sparse neighbourhood graphs via `MDMDistanceResult.to_sparse` for t-SNE,
+  Isomap, and UMAP projectors.
+- Add proximity-analysis helpers: `nearest_neighbours`, `silhouette`,
+  `suggest_clusters`, and `bayes_factor_cut`.
+- Add `mdmp.plotting.projection` with `project_distance`, `plot_projection`,
+  `plot_dendrogram`, and `plot_group_embedding` (MDS, non-metric MDS, t-SNE,
+  Isomap, UMAP).
+- Add optional `[umap]` extra (`umap-learn`) for UMAP projection.
+- Add `notebooks/08-gs-distance-projection.ipynb` demonstrating the GS distance
+  and projection workflow.
+- Re-export distance and projection entry points from `mdmp.group_analysis` and
+  top-level `mdmp`.
+
+### Changed
+
+- Add `scikit-learn` as a core dependency (multidimensional projection and
+  silhouette scoring).
+
+### Fixed
+
+- Reuse `subject_id` (or `subject` / `id`) stored on pre-fitted MDM objects when
+  `subject_ids` is omitted in the distance workflow.
+
 ## [0.6.2] - 2026-04-19
 
 ### Added
@@ -125,5 +155,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - This changelog and a single-source package version in `mdmp/_version.py`, with
   dynamic metadata in `pyproject.toml` and release automation via `bump-my-version`.
 
-[Unreleased]: https://github.com/maods2/mdmp/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/maods2/mdmp/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/maods2/mdmp/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/maods2/mdmp/releases/tag/v0.6.2
