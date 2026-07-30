@@ -31,6 +31,9 @@ from ..anomaly import detect_anomalies
 if TYPE_CHECKING:
     pass
 
+_UNSET = object()  # sentinel: use built-in default title
+
+
 _MAX_ARC_COLS = 4
 
 
@@ -222,6 +225,8 @@ def plot_marginal(
     figsize: Optional[tuple] = None,
     smooth: bool = True,
     smooth_factor: int = 5,
+    *,
+    title: Optional[str] = _UNSET,  # type: ignore[assignment]
 ) -> Figure:
     """
     Plot marginal posterior for a target node.
@@ -242,6 +247,9 @@ def plot_marginal(
         Upsample parameter curves for smooth display (visual only). Default is True.
     smooth_factor : int, optional
         Upsampling factor when ``smooth`` is True. Default is 5.
+    title : str or None, optional
+        Axes title. Defaults to ``"Marginal posterior: node <name>"``.
+        Pass ``None`` to omit a title.
 
     Returns
     -------
@@ -320,7 +328,10 @@ def plot_marginal(
         if hasattr(mdm_object, "node_names")
         else target_node
     )
-    ax.set_title(f"Marginal posterior: node {node_label}", fontsize=12, pad=10)
+    if title is _UNSET:
+        title = f"Marginal posterior: node {node_label}"
+    if title is not None:
+        ax.set_title(title, fontsize=12, pad=10)
     style_time_series_ax(ax, ylabel="Parameter")
 
     plt.tight_layout()
@@ -334,6 +345,8 @@ def plot_stream(
     figsize: Optional[tuple] = None,
     smooth: bool = True,
     smooth_factor: int = 5,
+    *,
+    title: Optional[str] = _UNSET,  # type: ignore[assignment]
 ) -> Figure:
     """
     Plot stream plot showing parent contributions to a child node.
@@ -352,6 +365,9 @@ def plot_stream(
         Upsample contribution curves for smooth display (visual only). Default is True.
     smooth_factor : int, optional
         Upsampling factor when ``smooth`` is True. Default is 5.
+    title : str or None, optional
+        Axes title. Defaults to ``"Parent contributions to node <name>"``.
+        Pass ``None`` to omit a title.
 
     Returns
     -------
@@ -406,11 +422,10 @@ def plot_stream(
         if hasattr(mdm_object, "node_names")
         else child_node
     )
-    ax.set_title(
-        f"Parent contributions to node {node_label}",
-        fontsize=12,
-        pad=10,
-    )
+    if title is _UNSET:
+        title = f"Parent contributions to node {node_label}"
+    if title is not None:
+        ax.set_title(title, fontsize=12, pad=10)
     style_time_series_ax(
         ax,
         ylabel="Contribution",

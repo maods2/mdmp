@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 _GRAPHVIZ_NODE_COLOR = "#4682B4"  # steelblue
 _GRAPHVIZ_EDGE_COLOR = "#333333"
 _GRAPHVIZ_LABEL_COLOR = "white"
+_UNSET = object()  # sentinel: use built-in default title
 
 
 def _hierarchical_layout(
@@ -138,6 +139,7 @@ def _plot_dag_graphviz(
     edge_color: str,
     label_color: str,
     figsize: Optional[tuple],
+    title: Optional[str] = "DAG Structure",
 ) -> Figure:
     """Render a Graphviz DAG into a matplotlib figure."""
     graph = _build_pydot_dag(
@@ -164,7 +166,8 @@ def _plot_dag_graphviz(
     fig, ax = plt.subplots(figsize=figsize)
     ax.imshow(img)
     ax.axis("off")
-    ax.set_title("DAG Structure", fontsize=14)
+    if title is not None:
+        ax.set_title(title, fontsize=14)
     fig.tight_layout()
     return fig
 
@@ -187,6 +190,7 @@ def plot_dag(
     node_size: float = 2000.0,
     font_size: int = 10,
     edge_width: float = 2.0,
+    title: Optional[str] = _UNSET,  # type: ignore[assignment]
 ) -> Figure:
     """
     Plot DAG structure as a graph or heatmap.
@@ -239,6 +243,9 @@ def plot_dag(
         Font size for node labels on the graph (``networkx`` style only).
     edge_width : float, optional
         Width of directed edges (``networkx`` style only).
+    title : str or None, optional
+        Axes title. Defaults to ``"DAG Structure"`` (or the heatmap variant).
+        Pass ``None`` to omit a title.
 
     Returns
     -------
@@ -255,6 +262,8 @@ def plot_dag(
             node_labels = [f"V{i + 1}" for i in range(n)]
 
     if plot_type == "heatmap":
+        if title is _UNSET:
+            title = "DAG Structure (Adjacency Matrix)"
         if figsize is None:
             figsize = (8, 8)
         fig, ax = plt.subplots(figsize=figsize)
@@ -270,10 +279,14 @@ def plot_dag(
 
         ax.set_xlabel("Child", fontsize=12)
         ax.set_ylabel("Parent", fontsize=12)
-        ax.set_title("DAG Structure (Adjacency Matrix)", fontsize=14)
+        if title is not None:
+            ax.set_title(title, fontsize=14)
 
         plt.tight_layout()
         return fig
+
+    if title is _UNSET:
+        title = "DAG Structure"
 
     if style == "graphviz":
         return _plot_dag_graphviz(
@@ -283,6 +296,7 @@ def plot_dag(
             edge_color=edge_color or _GRAPHVIZ_EDGE_COLOR,
             label_color=label_color or _GRAPHVIZ_LABEL_COLOR,
             figsize=figsize,
+            title=title,
         )
 
     if style != "networkx":
@@ -353,7 +367,8 @@ def plot_dag(
     if show_legend:
         ax.legend()
 
-    ax.set_title("DAG Structure", fontsize=14)
+    if title is not None:
+        ax.set_title(title, fontsize=14)
     ax.axis("off")
 
     plt.tight_layout()

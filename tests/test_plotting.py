@@ -138,6 +138,35 @@ def test_plot_dag_parameter_validation(mock_mdm_model):
     assert fig is not None
 
 
+def test_plot_title_custom_and_none(mock_mdm_model):
+    """Optional title= overrides defaults; None omits ax.set_title."""
+    from mdmp.plotting import plot_dag, plot_marginal, plot_stream
+
+    fig = plot_dag(mock_mdm_model, plot_type="graph", title="Custom")
+    assert fig.axes[0].get_title() == "Custom"
+
+    fig = plot_dag(mock_mdm_model, plot_type="graph", title=None)
+    assert fig.axes[0].get_title() == ""
+
+    fig = plot_dag(mock_mdm_model, plot_type="heatmap", title="Custom heat")
+    assert fig.axes[0].get_title() == "Custom heat"
+
+    fig = plot_dag(mock_mdm_model, plot_type="heatmap", title=None)
+    assert fig.axes[0].get_title() == ""
+
+    fig = plot_marginal(mock_mdm_model, target_node=0, title="Custom")
+    assert fig.axes[0].get_title() == "Custom"
+
+    fig = plot_marginal(mock_mdm_model, target_node=0, title=None)
+    assert fig.axes[0].get_title() == ""
+
+    fig = plot_stream(mock_mdm_model, child_node=0, title="Custom")
+    assert fig.axes[0].get_title() == "Custom"
+
+    fig = plot_stream(mock_mdm_model, child_node=0, title=None)
+    assert fig.axes[0].get_title() == ""
+
+
 def test_plot_dag_graphviz_style(mock_mdm_model):
     """Graphviz style renders when pydot + dot are available; else clear error."""
     from mdmp.plotting import plot_dag

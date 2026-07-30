@@ -89,6 +89,31 @@ def test_pgmpy_verbosity_context_restores_logger_level():
         logger.setLevel(previous)
 
 
+def test_pgmpy_verbosity_disables_global_show_progress():
+    """verbose=False also clears pgmpy config.SHOW_PROGRESS and restores it."""
+    import importlib
+
+    from mdmp.structure.algorithms import _pgmpy_verbosity
+
+    try:
+        gv = importlib.import_module("pgmpy.global_vars")
+        config = gv.config
+        previous = config.get_show_progress()
+    except Exception:
+        pytest.skip("real pgmpy.global_vars not available in this test env")
+
+    if not isinstance(previous, bool):
+        pytest.skip("pgmpy.global_vars.config is mocked")
+
+    config.set_show_progress(True)
+    try:
+        with _pgmpy_verbosity(False):
+            assert config.get_show_progress() is False
+        assert config.get_show_progress() is True
+    finally:
+        config.set_show_progress(previous)
+
+
 def test_pgmpy_kwargs_respects_explicit_show_progress():
     from mdmp.structure.algorithms import HillClimbingAlgorithm
 

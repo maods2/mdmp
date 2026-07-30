@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Optional `title=` on `plot_dag` / `plot_stream` / `plot_marginal` (pass
+  `None` to omit the axes title; default text unchanged for existing callers).
 - When `MDM(..., verbose=False)` (and other structure learners with
   `verbose=False`), raise the `pgmpy` logger to WARNING during structure
   learning and default `show_progress=False` so INFO messages such as

@@ -22,20 +22,37 @@ from .utils import extract_adjacency_from_model
 @contextmanager
 def _pgmpy_verbosity(verbose: bool) -> Iterator[None]:
     """
-    Align pgmpy logging with MDM ``verbose``.
+    Align pgmpy logging / progress bars with MDM ``verbose``.
 
-    When ``verbose`` is False, raise the ``pgmpy`` logger to WARNING so INFO
-    messages (e.g. datatype inference) are not emitted. Restores the previous
-    level on exit.
+    When ``verbose`` is False:
+
+    - raise the ``pgmpy`` logger to WARNING so INFO messages (e.g. datatype
+      inference) are not emitted;
+    - set ``pgmpy.global_vars.config.SHOW_PROGRESS`` to False so tqdm bars are
+      suppressed even if an estimator forgets ``show_progress=False``.
+
+    Restores the previous logger level and progress flag on exit.
     """
     logger = logging.getLogger("pgmpy")
-    previous = logger.level
+    previous_level = logger.level
+    previous_progress = None
+    config = None
     if not verbose:
         logger.setLevel(logging.WARNING)
+        try:
+            from pgmpy.global_vars import config
+
+            previous_progress = config.get_show_progress()
+            config.set_show_progress(False)
+        except Exception:
+            config = None
+            previous_progress = None
     try:
         yield
     finally:
-        logger.setLevel(previous)
+        logger.setLevel(previous_level)
+        if previous_progress is not None and config is not None:
+            config.set_show_progress(previous_progress)
 
 
 def _build_pgmpy_score(df, node_names, nbf):
