@@ -67,3 +67,32 @@ def test_learn_structure_hc_with_pgmpy(sample_data):
 
         assert isinstance(result, np.ndarray)
         assert result.shape == (sample_data.shape[1], sample_data.shape[1])
+        # verbose=False defaults show_progress=False for pgmpy estimators
+        _, kwargs = mock_hc.estimate.call_args
+        assert kwargs.get("show_progress") is False
+
+
+def test_pgmpy_verbosity_context_restores_logger_level():
+    """verbose=False temporarily raises pgmpy logger; level restored after."""
+    import logging
+
+    from mdmp.structure.algorithms import _pgmpy_verbosity
+
+    logger = logging.getLogger("pgmpy")
+    previous = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        with _pgmpy_verbosity(False):
+            assert logger.level == logging.WARNING
+        assert logger.level == logging.INFO
+    finally:
+        logger.setLevel(previous)
+
+
+def test_pgmpy_kwargs_respects_explicit_show_progress():
+    from mdmp.structure.algorithms import HillClimbingAlgorithm
+
+    algo = HillClimbingAlgorithm(verbose=False)
+    out = algo._pgmpy_kwargs({"show_progress": True, "max_iter": 10})
+    assert out["show_progress"] is True
+    assert out["max_iter"] == 10

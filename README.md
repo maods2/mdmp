@@ -525,6 +525,22 @@ plot_marginal(mdm_object=model, distribution="smoo", target_node=0, scale_series
 - The `distribution` argument defines whether to use filtered (`"filt"`) or smoothed (`"smoo"`) posterior estimates. Default is `"filt"`.
 - The `scale_series` argument is a logical value. If `True`, all time series (observed and parental contributions) are standardized (mean zero, unit variance). Default is `False`.
 
+### 3.6 Anomaly detection (predictive interval)
+
+Flag observations outside the MDM one-step Student-t predictive band and plot them:
+
+```python
+from mdmp import detect_anomalies, plot_anomalies
+
+result = detect_anomalies(model, ci_level=0.95)          # all nodes
+df = detect_anomalies(model, series="Y1", output="dataframe")
+fig = plot_anomalies(model, series=0, ci_level=0.95)
+```
+
+- Criterion: anomaly if `y_t` lies outside `f_t ± t_{(1+ci)/2, n_t-1} √Q_t`.
+- Score: absolute standardized forecast error `|ets|`.
+- `plot_anomalies` calls `detect_anomalies` (no separate detection logic) and draws the observed polyline, predictive mean, interval band, and `x` markers on anomalies.
+
 ---
 
 ## Main Components

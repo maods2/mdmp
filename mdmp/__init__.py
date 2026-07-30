@@ -8,6 +8,7 @@ This package is a Python port of the R package 'mdmr'.
 """
 
 from ._version import __version__
+from .anomaly import AnomalyDetectionResult, detect_anomalies
 from .datasets import (
     list_datasets,
     load_dataset,
@@ -31,6 +32,7 @@ from .group_analysis import (
 )
 from .model import MDM, refit_mdm_on_structure
 from .plotting import (
+    plot_anomalies,
     plot_arcs,
     plot_dag,
     plot_dendrogram,
@@ -68,9 +70,14 @@ __all__ = [
     "CDELT",  # Alias for R compatibility
     "compute_logpl",  # Internal but available
 
+    # Anomaly detection
+    "detect_anomalies",
+    "AnomalyDetectionResult",
+
     # Plotting functions (R exports)
     "plot_dag",
     "plot_arcs",
+    "plot_anomalies",
     "plot_marginal",
     "plot_stream",
     "plot_idag",

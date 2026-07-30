@@ -40,6 +40,7 @@ Repository = "https://github.com/maods2/mdmp"
 [project.optional-dependencies]
 notears = []
 umap = ["umap-learn>=0.5"]
+graphviz = ["pydot>=1.4"]
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",

@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- When `MDM(..., verbose=False)` (and other structure learners with
+  `verbose=False`), raise the `pgmpy` logger to WARNING during structure
+  learning and default `show_progress=False` so INFO messages such as
+  datatype inference are not printed.
+
 ### Added
 
+- `plot_dag(..., style="graphviz")`: Graphviz ``dot`` rendering with circular
+  filled nodes and curved edge routing (requires optional `pydot` + Graphviz
+  ``dot`` binary; `pip install mdmp[graphviz]`).
 - `aggregate_individual_structures`: `mc_n_jobs` to parallelize Monte Carlo over filter
   time steps (`None` or `1` = serial, `-1` = all cores).
 - Add `mdmp.group_analysis.inds` subpackage (Individual Structure aggregation).
