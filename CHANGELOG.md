@@ -59,6 +59,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Move Jupyter notebooks, `retail_helpers.py`, and retail CSV under
+  `examples/notebooks/`; refresh `examples/*.py` demos (including new IS/GS
+  scripts) and update README / examples README links.
 - Document MDMP as a new Python MDM implementation (not an R `mdmr` port) in
   the README and example notebooks; restyle notebook intros to a topic-first
   pattern; lead README examples with the retail case study.

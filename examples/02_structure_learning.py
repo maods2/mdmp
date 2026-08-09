@@ -1,10 +1,8 @@
 """
 Structure Learning Methods Example
 
-This example demonstrates:
-1. Different structure learning methods (hill-climbing vs Max-Min Hill-Climbing)
-2. How to use each method
-3. Comparing learned structures
+Demonstrates hill-climbing, tabu search, and Max-Min Hill-Climbing (mmhc),
+and compares the learned DAGs on a bundled dataset.
 """
 
 import numpy as np
@@ -12,12 +10,10 @@ import pandas as pd
 
 from mdmp import MDM, load_dataset
 
-# Set random seed for reproducibility
 np.random.seed(42)
 
-# Generate synthetic time series data
 data_df = load_dataset("covid_regional_timeseries")
-_, N = data_df.shape
+_, n_nodes = data_df.shape
 
 print("=" * 60)
 print("Structure Learning Methods Comparison")
@@ -25,67 +21,48 @@ print("=" * 60)
 print(f"\nData shape: {data_df.shape}")
 print(f"Variables: {list(data_df.columns)}")
 
-# Method 1: Hill-climbing (default)
-print("\n" + "=" * 60)
-print("Method 1: Hill-Climbing")
-print("=" * 60)
-model_hc = MDM(data_df, method="hc", nbf=15, verbose=False)
+methods = [
+    ("hc", "Hill-Climbing"),
+    ("tabu", "Tabu Search"),
+    ("mmhc", "Max-Min Hill-Climbing"),
+]
+models = {}
 
-print("\nLearned Adjacency Matrix:")
-adj_hc = pd.DataFrame(
-    model_hc.adj_mat,
-    index=model_hc.node_names,
-    columns=model_hc.node_names
-)
-print(adj_hc)
-print(f"Total edges: {np.sum(model_hc.adj_mat)}")
+for key, label in methods:
+    print("\n" + "=" * 60)
+    print(f"Method: {label} ({key})")
+    print("=" * 60)
+    model = MDM(data_df, method=key, nbf=15, verbose=False)
+    models[key] = model
+    adj = pd.DataFrame(model.adj_mat, index=model.node_names, columns=model.node_names)
+    print("\nLearned Adjacency Matrix:")
+    print(adj)
+    print(f"Total edges: {int(np.sum(model.adj_mat))}")
 
-# Method 2: Max-Min Hill-Climbing
-print("\n" + "=" * 60)
-print("Method 2: Max-Min Hill-Climbing")
-print("=" * 60)
-model_mmhc = MDM(data_df, method="mmhc", nbf=15, verbose=False)
-
-print("\nLearned Adjacency Matrix:")
-adj_mmhc = pd.DataFrame(
-    model_mmhc.adj_mat,
-    index=model_mmhc.node_names,
-    columns=model_mmhc.node_names
-)
-print(adj_mmhc)
-print(f"Total edges: {np.sum(model_mmhc.adj_mat)}")
-
-# Compare structures
 print("\n" + "=" * 60)
 print("Comparison")
 print("=" * 60)
-print(f"\nHill-climbing edges: {np.sum(model_hc.adj_mat)}")
-print(f"Max-Min Hill-Climbing edges: {np.sum(model_mmhc.adj_mat)}")
+for key, label in methods:
+    print(f"  {label}: {int(np.sum(models[key].adj_mat))} edges")
 
-# Find differences
-diff = model_hc.adj_mat - model_mmhc.adj_mat
+# Highlight edges that differ between hc and mmhc
+diff = models["hc"].adj_mat - models["mmhc"].adj_mat
 if np.any(diff != 0):
-    print("\nEdges that differ:")
-    for i in range(N):
-        for j in range(N):
-            if diff[i, j] != 0:
-                if diff[i, j] > 0:
-                    print(f"  {model_hc.node_names[i]} -> {model_hc.node_names[j]}: "
-                          f"only in hill-climbing")
-                else:
-                    print(f"  {model_hc.node_names[i]} -> {model_hc.node_names[j]}: "
-                          f"only in Max-Min Hill-Climbing")
+    print("\nEdges that differ (hc vs mmhc):")
+    for i in range(n_nodes):
+        for j in range(n_nodes):
+            if diff[i, j] == 0:
+                continue
+            edge = f"{models['hc'].node_names[i]} -> {models['hc'].node_names[j]}"
+            if diff[i, j] > 0:
+                print(f"  {edge}: only in hill-climbing")
+            else:
+                print(f"  {edge}: only in Max-Min Hill-Climbing")
 else:
-    print("\nBoth methods found the same structure!")
+    print("\nhc and mmhc found the same structure!")
 
-# Discount factors comparison
-print("\nDiscount Factors Comparison:")
-print("\nHill-climbing:")
-for name, df_val in zip(model_hc.node_names, model_hc.DF['DF_hat']):
-    print(f"  {name}: {df_val:.4f}")
-
-print("\nMax-Min Hill-Climbing:")
-for name, df_val in zip(model_mmhc.node_names, model_mmhc.DF['DF_hat']):
+print("\nDiscount Factors (hill-climbing):")
+for name, df_val in zip(models["hc"].node_names, models["hc"].DF["DF_hat"]):
     print(f"  {name}: {df_val:.4f}")
 
 print("\n" + "=" * 60)

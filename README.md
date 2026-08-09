@@ -132,15 +132,15 @@ pip install git+https://github.com/xunzheng/notears.git
 ## Example Usage
 
 The full end-to-end tour is the retail case study notebook
-[`notebooks/01-mdmp-library-demo.ipynb`](notebooks/01-mdmp-library-demo.ipynb).
+[`examples/notebooks/01-mdmp-library-demo.ipynb`](examples/notebooks/01-mdmp-library-demo.ipynb).
 Below is a condensed walkthrough of the same flow: load retail sales, fit an MDM,
 and plot the learned DAG. Group-analysis examples (VTS, IS, GS clustering) live in
-`notebooks/` — see especially
-[`notebooks/09-gs-clusters-then-vts-is.ipynb`](notebooks/09-gs-clusters-then-vts-is.ipynb).
+`examples/notebooks/` — see especially
+[`examples/notebooks/09-gs-clusters-then-vts-is.ipynb`](examples/notebooks/09-gs-clusters-then-vts-is.ipynb).
 
 ### 1. Load retail sales and fit MDM
 
-Helpers and the CSV ship under `notebooks/` (`retail_helpers.py`, `data/`).
+Helpers and the CSV ship under `examples/notebooks/` (`retail_helpers.py`, `data/`).
 
 ```python
 import sys
@@ -149,7 +149,7 @@ from pathlib import Path
 import pandas as pd
 from mdmp import MDM, plot_dag, plot_arcs
 
-sys.path.insert(0, str(Path("notebooks").resolve()))
+sys.path.insert(0, str(Path("examples/notebooks").resolve()))
 from retail_helpers import parse_retail_dataset, aggregate_by_level, DAG_LABELS
 
 sales, hierarchy = parse_retail_dataset()
@@ -374,6 +374,10 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 3. **`plot_marginal()`**: Plot marginal posterior for a target node
 4. **`plot_stream()`**: Plot parent contributions to a child node
 5. **`plot_idag()`**: Create animated heatmap of dynamic parameters
+6. **`plot_anomalies()`**: Observed series vs predictive mean/interval with anomaly markers
+7. **`plot_dendrogram()`**: Hierarchical clustering dendrogram from GS distance
+8. **`plot_projection()`**: 2D embedding scatter of subjects from GS distance
+9. **`plot_group_embedding()`**: Side-by-side projection + dendrogram
 
 ### Group analysis (`mdmp.group_analysis`)
 
@@ -420,7 +424,10 @@ dist = compute_mdm_distance(inds)                   # stages 2–3
 fig = plot_group_embedding(dist, technique="nmds")    # stage 5
 ```
 
-See `examples/04_vts_usage.py`, `notebooks/05-is-aggregation.ipynb`, `notebooks/08-gs-distance-projection.ipynb`, `notebooks/04-is-vs-vts-multi-individual.ipynb`, and `notebooks/09-gs-clusters-then-vts-is.ipynb` (GS clustering then VTS/IS per cluster on retail data).
+See `examples/04_vts_usage.py`, `examples/05_is_aggregation.py`, `examples/06_gs_distance.py`,
+`examples/notebooks/05-is-aggregation.ipynb`, `examples/notebooks/08-gs-distance-projection.ipynb`,
+`examples/notebooks/04-is-vs-vts-multi-individual.ipynb`, and
+`examples/notebooks/09-gs-clusters-then-vts-is.ipynb` (GS clustering then VTS/IS per cluster on retail data).
 
 ## API Reference
 
