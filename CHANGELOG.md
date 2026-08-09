@@ -7,17 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Optional `title=` on `plot_dag` / `plot_stream` / `plot_marginal` (pass
-  `None` to omit the axes title; default text unchanged for existing callers).
-- When `MDM(..., verbose=False)` (and other structure learners with
-  `verbose=False`), raise the `pgmpy` logger to WARNING during structure
-  learning and default `show_progress=False` so INFO messages such as
-  datatype inference are not printed.
-
 ### Added
 
+- Add notebook `09-gs-clusters-then-vts-is.ipynb`: fit MDM per subject, cluster with
+  group-structure distance, then compute VTS and IS separately per cluster on
+  retail demo data.
 - `plot_dag(..., style="graphviz")`: Graphviz ``dot`` rendering with circular
   filled nodes and curved edge routing (requires optional `pydot` + Graphviz
   ``dot`` binary; `pip install mdmp[graphviz]`).
@@ -55,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Remove the `simulation/` comparison tree and `notebooks/03-mdmr.ipynb` (R `mdmr` demo).
 - Remove split IS entry points: `vote_individual_structures`,
   `run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`,
   `aggregate_with_options`, and `refit_on_consensus` from the public API.
@@ -64,6 +59,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Document MDMP as a new Python MDM implementation (not an R `mdmr` port) in
+  the README and example notebooks; restyle notebook intros to a topic-first
+  pattern; lead README examples with the retail case study.
+- Rewrite `04-is-vs-vts-multi-individual.ipynb` to use retail demo data.
+- Optional `title=` on `plot_dag` / `plot_stream` / `plot_marginal` (pass
+  `None` to omit the axes title; default text unchanged for existing callers).
+- When `MDM(..., verbose=False)` (and other structure learners with
+  `verbose=False`), raise the `pgmpy` logger to WARNING during structure
+  learning and default `show_progress=False` so INFO messages such as
+  datatype inference are not printed.
 - `aggregate_individual_structures`: `mc_refit_global_structure=None` (default) refits
   on the consensus DAG when inputs are MDM-like; pass `False` for the previous
   individual-DAG filtered posterior path.

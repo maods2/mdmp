@@ -2,7 +2,7 @@
 
 **MDMP** is a Python package for learning Bayesian network structures from multivariate time series and estimating time-varying dynamic parameters using Kalman filtering and smoothing. It integrates structure learning algorithms including hill-climbing and tabu search with Kalman filtering and smoothing to estimate time-varying parameters for each node.
 
-This package is a Python port of the R package **mdmr** developed by [Lilia Costa](mailto:liliacosta@ufba.br) and maintained by [Arthur R. Azevedo](mailto:arthur.rios@ufba.br).
+**MDMP** is a new Python implementation of the Bayesian dynamic regression model (MDM) for multivariate time series.
 
 ## Features
 
@@ -378,43 +378,53 @@ All tests should pass before submitting pull requests.
 
 ## Example Usage
 
-This walkthrough demonstrates how to use `MDMP` to learn a dynamic Bayesian network and visualize the results. This example uses a multivariate time series data [200 x 4].
+The full end-to-end tour is the retail case study notebook
+[`notebooks/01-mdmp-library-demo.ipynb`](notebooks/01-mdmp-library-demo.ipynb).
+Below is a condensed walkthrough of the same flow: load retail sales, fit an MDM,
+and plot the learned DAG. Group-analysis examples (VTS, IS, GS clustering) live in
+`notebooks/` — see especially
+[`notebooks/09-gs-clusters-then-vts-is.ipynb`](notebooks/09-gs-clusters-then-vts-is.ipynb).
 
-### 1. Load the package and sample data
+### 1. Load retail sales and fit MDM
+
+Helpers and the CSV ship under `notebooks/` (`retail_helpers.py`, `data/`).
 
 ```python
-import numpy as np
+import sys
+from pathlib import Path
+
 import pandas as pd
-from mdmp import MDM, plot_dag, plot_arcs, plot_marginal, plot_stream, plot_idag, list_datasets, load_dataset
+from mdmp import MDM, plot_dag, plot_arcs
 
-# Load sample data
-data = load_dataset("covid_regional_timeseries")
-print(data.head())
+sys.path.insert(0, str(Path("notebooks").resolve()))
+from retail_helpers import parse_retail_dataset, aggregate_by_level, DAG_LABELS
+
+sales, hierarchy = parse_retail_dataset()
+# Sum SKUs within each product line (C3), then learn structure
+c3 = aggregate_by_level(sales, hierarchy, "type")
+model = MDM(c3, method="hc", verbose=True, n_jobs=-1)
 ```
 
-### 2. Fit the MDM model
+`model` holds the inferred DAG (`adj_mat`), filtering/smoothing estimates (`Filt`, `Smoo`),
+and local scores. Structure-learning methods include `"hc"`, `"tabu"`, and `"mmhc"`.
+
+### 2. Plot the DAG and dynamic arcs
 
 ```python
-model = MDM(data, method="hc", verbose=True, n_jobs=-1)
-# Learning structure using method: hc
-# Selecting discount factors...
-# Computing filtered estimates...
-# Computing smoothed estimates...
-# 
-# MDM processing completed in 6.47 seconds
+plot_dag(model, plot_type="graph", node_labels=DAG_LABELS)
+plot_arcs(model, plot_type="connections", distribution="filt", ci_level=0.95)
 ```
 
-- `model` is an object of class `MDM` containing:
-  - The inferred DAG structure (`adj_mat`)
-  - Filtering and smoothing estimates (`Filt`, `Smoo`)
-  - Local scores and optimization metadata
-  - Available methods: `"hc"` (hill-climbing), `"tabu"` (tabu search), `"mmhc"` (Max-Min Hill-Climbing)
+For bundled sample series without the retail CSV, you can also use
+`load_dataset("covid_regional_timeseries")` or `load_dataset("mdmr_test_data")`.
 
 ---
 
 ## Visualizations
 
-### 3.1 DAG Structure
+The figures below illustrate the plotting API (examples use a fitted `MDM` object).
+
+### DAG Structure
 
 ```python
 plot_dag(model, plot_type="graph")
@@ -434,7 +444,7 @@ plot_dag(model, plot_type="heatmap")
 
 - There are other arguments to personalize the graph output like `edge_color`, `node_color`, and `node_labels`.
 
-### 3.2 Arcs Over Time
+### Arcs Over Time
 
 Highlight which arcs were selected and their local scores:
 
@@ -460,7 +470,7 @@ plot_arcs(model, plot_type="intercepts", distribution="filt")
 - The `distribution` argument defines whether to use filtered (`"filt"`) or smoothed (`"smoo"`) distributions. Default is `"filt"`.
 - The `ci_level` argument establishes the width of the credible interval. Default is `0.95`.
 
-### 3.3 Dynamic Heatmap Animation
+### Dynamic Heatmap Animation
 
 Animated heatmap of posterior estimates across time:
 
@@ -486,7 +496,7 @@ plot_idag(
 - `height` (in inches) of each frame. Default is `6`.
 - `dpi` is the resolution (dots per inch) for saved frames. Default is `100`.
 
-### 3.4 Stream Plot for a Node
+### Stream Plot for a Node
 
 Plot contribution of parents to the dynamic evolution of a target node:
 
@@ -502,7 +512,7 @@ plot_stream(mdm_object=model, child_node=0, distribution="filt")
 - The `child_node` argument is an integer index of the target node (i.e., the child whose parents' effects are shown).
 - The `distribution` argument defines whether to use filtered (`"filt"`) or smoothed (`"smoo"`) posterior estimates. Default is `"filt"`.
 
-### 3.5 Marginal Posterior for a Node
+### Marginal Posterior for a Node
 
 Plot the marginal posterior means and confidence bands:
 
@@ -525,7 +535,7 @@ plot_marginal(mdm_object=model, distribution="smoo", target_node=0, scale_series
 - The `distribution` argument defines whether to use filtered (`"filt"`) or smoothed (`"smoo"`) posterior estimates. Default is `"filt"`.
 - The `scale_series` argument is a logical value. If `True`, all time series (observed and parental contributions) are standardized (mean zero, unit variance). Default is `False`.
 
-### 3.6 Anomaly detection (predictive interval)
+### Anomaly detection (predictive interval)
 
 Flag observations outside the MDM one-step Student-t predictive band and plot them:
 
@@ -596,13 +606,13 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 ```
 
 **Registered but not yet implemented:**
-- **`"ipa"`**: Integer Programming Approach using GOBNILP - Registered but currently raises `NotImplementedError`. The R package supports this via GOBNILP integration. Future Python implementation would require GOBNILP binary installation.
+- **`"ipa"`**: Integer Programming Approach (GOBNILP) — registered but currently raises `NotImplementedError`.
 
 **Not yet implemented:**
-- **`"h2pc"`**: H2PC algorithm - Available in R package via `bnlearn::h2pc`
-- **`"rsmax2"`**: RSMAX2 algorithm - Available in R package via `bnlearn::rsmax2`
+- **`"h2pc"`**: H2PC algorithm
+- **`"rsmax2"`**: RSMAX2 algorithm
 
-**Note:** These methods correspond to the algorithms available in the original R package `mdmr`, which uses `bnlearn::hc`, `bnlearn::tabu`, `bnlearn::mmhc`, `bnlearn::h2pc`, `bnlearn::rsmax2`, and supports GOBNILP for IPA. The Python implementation uses `pgmpy` as the backend for structure learning algorithms.
+**Note:** Implemented structure learners use `pgmpy` as the backend (`pip install mdmp[hc]`).
 
 ### Plotting Functions
 
@@ -657,7 +667,7 @@ dist = compute_mdm_distance(inds)                   # stages 2–3
 fig = plot_group_embedding(dist, technique="nmds")    # stage 5
 ```
 
-See `examples/04_vts_usage.py`, `simulation/07_vts_multi_individual_analysis.ipynb`, `notebooks/05-is-aggregation.ipynb`, `notebooks/08-gs-distance-projection.ipynb`, and `notebooks/04-is-vs-vts-multi-individual.ipynb` (IS vs VTS on `simulation/multi-individual/` CSVs).
+See `examples/04_vts_usage.py`, `notebooks/05-is-aggregation.ipynb`, `notebooks/08-gs-distance-projection.ipynb`, `notebooks/04-is-vs-vts-multi-individual.ipynb`, and `notebooks/09-gs-clusters-then-vts-is.ipynb` (GS clustering then VTS/IS per cluster on retail data).
 
 ## API Reference
 
@@ -683,15 +693,6 @@ Select optimal discount factors for each node.
 
 Structure learning algorithms.
 
-## Comparison with R Package
-
-This Python package (`mdmp`) is a port of the R package `mdmr`. The main differences:
-
-1. **Pythonic API**: Uses Python conventions and type hints
-2. **Modular Design**: Code is organized into logical modules
-3. **Modern Dependencies**: Uses NumPy, Pandas, Matplotlib instead of R equivalents
-4. **Structure Learning**: Implements hill-climbing, tabu search, and Max-Min Hill-Climbing via pgmpy integration
-
 ## Documentation
 
 Full documentation is available in the docstrings. To view:
@@ -703,7 +704,7 @@ help(mdmp.MDM)
 
 ## License
 
-GPL-3.0 (same as the original R package)
+GPL-3.0
 
 ## Citation
 
@@ -712,21 +713,9 @@ If you use this package in your research, please cite:
 ```
 @software{mdmp,
   title = {MDMP: Bayesian Dynamic Regression Model for Python},
-  author = {},
+  author = {Oliveira dos Santos, Matheus Augusto},
   version = {0.6.2},
-  url = {https://github.com/maods2/mdmp},
-  note = {Python port of the mdmr R package}
-}
-```
-
-For the original R package, please cite:
-
-```
-@software{mdmr,
-  title = {mdmr: Bayesian dynamic regression model (MDM)},
-  author = {Costa, Lilia and Azevedo, Arthur R.},
-  version = {0.6.2},
-  url = {https://github.com/arzevedo/mdmr}
+  url = {https://github.com/maods2/mdmp}
 }
 ```
 
@@ -775,23 +764,10 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## Acknowledgments
 
-This package is a Python port of the R package **mdmr**.
+MDMP implements the Bayesian dynamic regression (MDM) approach for multivariate time series.
 
-- **Original Author**: [Lilia Costa](mailto:liliacosta@ufba.br) - Creator of the MDM model and original R package implementation
-- **R Package Maintainer**: [Arthur R. Azevedo](mailto:arthur.rios@ufba.br) - Maintainer of the [mdmr R package](https://github.com/arzevedo/mdmr)
-- **Python Port Maintainer**: [Matheus Augusto Oliveira dos Santos](mailto:matheusaugusto@ufba.br) - Responsible for adapting and implementing the Python version
+- **MDM model**: [Lilia Costa](mailto:liliacosta@ufba.br) and collaborators developed the MDM methodology
+- **MDMP author**: [Matheus Augusto Oliveira dos Santos](mailto:matheusaugusto@ufba.br) — Python implementation and maintenance
 
-## Changelog
-
-### 0.7.0 (Current Version)
-- Ported core functionality from R package mdmr
-- Implemented DLM filtering and smoothing
-- Implemented MDM structure learning (hill-climbing, tabu search, Max-Min Hill-Climbing)
-- Implemented plotting functions
-- Added comprehensive documentation
-- **Parallel Processing**: Added multiprocessing support for discount factor selection, filtering, and smoothing
-- **Progress Bars**: Integrated `tqdm` for visual progress tracking during long operations
-- **Performance Logging**: Added automatic timing and logging of total processing time
-- **Code Modularization**: Refactored code for better maintainability and testability
-- **Tabu Search**: Fully implemented tabu search algorithm with configurable parameters
+Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
 

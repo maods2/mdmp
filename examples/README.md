@@ -127,4 +127,6 @@ python 04_vts_usage.py
 
 - See the main [README.md](../README.md) for package overview
 - Check the API documentation in function docstrings
+- Canonical end-to-end tour: [`notebooks/01-mdmp-library-demo.ipynb`](../notebooks/01-mdmp-library-demo.ipynb)
+- GS clustering then VTS/IS per cluster: [`notebooks/09-gs-clusters-then-vts-is.ipynb`](../notebooks/09-gs-clusters-then-vts-is.ipynb)
 - See `examples/example_usage.py` in the parent directory for a more complete example with real data processing
