@@ -59,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Set package version to `0.1.0` (intentional reset from `0.6.2` for the
+  public/docs refresh).
 - Move Jupyter notebooks, `retail_helpers.py`, and retail CSV under
   `examples/notebooks/`; refresh `examples/*.py` demos (including new IS/GS
   scripts) and update README / examples README links.

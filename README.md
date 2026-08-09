@@ -94,7 +94,7 @@ pip install "mdmp[umap]"       # UMAP embeddings for GS projection
 
 ```bash
 pip install git+https://github.com/maods2/mdmp.git
-pip install git+https://github.com/maods2/mdmp.git@v0.6.2
+pip install git+https://github.com/maods2/mdmp.git@v0.1.0
 ```
 
 ### Install from source
@@ -300,9 +300,43 @@ df = detect_anomalies(model, series="Y1", output="dataframe")
 fig = plot_anomalies(model, series=0, ci_level=0.95)
 ```
 
+![Anomalies](plot_examples/anomalies.png)
+
 - Criterion: anomaly if `y_t` lies outside `f_t ± t_{(1+ci)/2, n_t-1} √Q_t`.
 - Score: absolute standardized forecast error `|ets|`.
 - `plot_anomalies` calls `detect_anomalies` (no separate detection logic) and draws the observed polyline, predictive mean, interval band, and `x` markers on anomalies.
+
+### Group-structure plots
+
+After computing a pairwise GS distance (`compute_mdm_distance`), visualize subject
+similarity with a dendrogram, a 2D projection, or both side by side:
+
+```python
+from mdmp import (
+    fit_individual_structures,
+    compute_mdm_distance,
+    plot_dendrogram,
+    plot_projection,
+    plot_group_embedding,
+)
+
+individuals = fit_individual_structures(subjects, method="hc", verbose=False)
+dist = compute_mdm_distance(individuals, verbose=False)
+
+plot_dendrogram(dist)
+plot_projection(dist, technique="mds", n_clusters=2)
+plot_group_embedding(dist, technique="mds", n_clusters=2)
+```
+
+![Dendrogram](plot_examples/dendrogram.png)
+
+![Projection](plot_examples/projection.png)
+
+![Group embedding](plot_examples/group_embedding.png)
+
+- `plot_dendrogram`: hierarchical clustering of subjects from the GS distance.
+- `plot_projection`: 2D embedding (`mds`, `nmds`, `tsne`, …) with optional cluster coloring.
+- `plot_group_embedding`: projection scatter and dendrogram in one figure.
 
 ---
 
@@ -477,7 +511,7 @@ If you use this package in your research, please cite:
 @software{mdmp,
   title = {MDMP: Bayesian Dynamic Regression Model for Python},
   author = {Oliveira dos Santos, Matheus Augusto},
-  version = {0.6.2},
+  version = {0.1.0},
   url = {https://github.com/maods2/mdmp}
 }
 ```
@@ -491,6 +525,6 @@ development install, tests, linting, and how we cut releases.
 
 MDMP implements the Bayesian dynamic regression (MDM) approach for multivariate time series.
 
-- **MDM model**: [Lilia Costa](mailto:liliacosta@ufba.br) and collaborators developed the MDM methodology
+- **Methodology**: [Lilia Costa](mailto:liliacosta@ufba.br) and Diego C. Nascimento collaborated on the MDM model and group-analysis methods (VTS / IS / GS)
 - **MDMP author**: [Matheus Augusto Oliveira dos Santos](mailto:matheusaugusto@ufba.br) — Python implementation and maintenance
 
