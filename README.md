@@ -1,19 +1,21 @@
 # MDMP: Bayesian Network Modeling for Dynamic Multivariate Time Series
 
-**MDMP** is a Python package for learning Bayesian network structures from multivariate time series and estimating time-varying dynamic parameters using Kalman filtering and smoothing. It integrates structure learning algorithms including hill-climbing and tabu search with Kalman filtering and smoothing to estimate time-varying parameters for each node.
-
-**MDMP** is a new Python implementation of the Bayesian dynamic regression model (MDM) for multivariate time series.
+**MDMP** is a new Python implementation of the Bayesian dynamic regression model
+(MDM) for multivariate time series. It learns Bayesian network structure and
+estimates time-varying parameters with Kalman filtering and smoothing
+(hill-climbing, tabu search, and Max-Min Hill-Climbing).
 
 ## Features
 
-- **Structure Learning**: Learn Bayesian network structures from multivariate time series using various algorithms (hill-climbing, tabu search, Max-Min Hill-Climbing)
+- **Structure Learning**: Learn Bayesian network structures from multivariate time series (hill-climbing, tabu search, Max-Min Hill-Climbing)
 - **Dynamic Parameter Estimation**: Estimate time-varying parameters using Kalman filtering and smoothing
 - **Discount Factor Selection**: Automatically select optimal discount factors for each node
-- **Parallel Processing**: Support for multiprocessing to speed up computation on multi-core systems
-- **Progress Tracking**: Visual progress bars for long-running operations (when `verbose=True`)
-- **Performance Logging**: Automatic timing and logging of total processing time
-- **Visualization**: Comprehensive plotting tools for DAG structures, dynamic parameters, marginal posteriors, and animated heatmaps
-- **Virtual Typical Subject (VTS)**: Compute a representative subject from multi-subject time series via concatenation-based or mean-based aggregation; compare methods and integrate with MDM
+- **Parallel Processing**: Multiprocessing support for multi-core systems
+- **Visualization**: Plot DAGs, dynamic parameters, marginal posteriors, streams, and animated heatmaps
+- **Anomaly detection**: Flag observations outside the one-step predictive interval (`detect_anomalies` / `plot_anomalies`)
+- **Virtual Typical Subject (VTS)**: Build a representative series from multi-subject data (mean, median, or concatenation), then fit MDM
+- **Individual Structure (IS)**: Aggregate per-subject DAGs into a consensus structure (edge voting + acyclic repair)
+- **Group-structure (GS) distance**: Pairwise MDM dissimilarities for clustering, embedding, and dendrograms
 
 ## MDM Algorithm Flow
 
@@ -81,71 +83,29 @@ flowchart TD
 pip install mdmp
 ```
 
-### Install from GitHub
+Optional extras:
 
-You can install directly from the GitHub repository:
+```bash
+pip install "mdmp[graphviz]"   # Graphviz DAG style (pydot + Graphviz binary)
+pip install "mdmp[umap]"       # UMAP embeddings for GS projection
+```
+
+### Install from GitHub
 
 ```bash
 pip install git+https://github.com/maods2/mdmp.git
-```
-
-Or install a specific branch or tag:
-
-```bash
-pip install git+https://github.com/maods2/mdmp.git@main
 pip install git+https://github.com/maods2/mdmp.git@v0.6.2
 ```
 
-### Install from Source (Development)
-
-Clone the repository and install in development mode:
-
-```bash
-# Clone the repository
-git clone https://github.com/maods2/mdmp.git
-cd mdmp
-
-# Create virtual environment (choose one method)
-# Method 1: Using uv (recommended)
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv sync
-
-# Method 2: Using venv
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -e .
-
-# Method 3: Using existing virtual environment (e.g., .venv-win)
-.venv-win\Scripts\activate  # Windows
-# or
-source .venv/bin/activate   # Linux/Mac
-
-# Install package in editable/development mode
-pip install -e .
-
-# Optional: Install with development dependencies
-pip install -e ".[dev]"
-
-# Optional: Install with hill-climbing support (requires pgmpy)
-pip install -e ".[hc]"
-```
-
-### Install from Source (Production)
-
-For production installation (non-editable):
+### Install from source
 
 ```bash
 git clone https://github.com/maods2/mdmp.git
 cd mdmp
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install in production mode
 pip install .
 ```
+
+For editable installs, tests, and linting, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Requirements
 
@@ -153,228 +113,21 @@ pip install .
 - numpy >= 1.20.0
 - pandas >= 1.3.0
 - scipy >= 1.7.0
+- scikit-learn >= 1.2
 - matplotlib >= 3.3.0
 - networkx >= 2.6.0
+- pgmpy >= 0.1.25
+- tqdm >= 4.60.0
 
 ### Optional Dependencies
 
-- **pgmpy** (>=0.1.25): Required for hill-climbing structure learning method
-- **notears**: Required for NOTEARS structure learning method (not on PyPI; install from GitHub, see below)
-- **pytest** (>=7.0.0): For running unit tests
-- **pytest-cov**: For test coverage reports (development only)
-
-#### Installing NOTEARS (from GitHub)
-
-The NOTEARS library is not available on PyPI. Install it from GitHub to use the `method="notears"` structure learning option:
+- **pydot** (+ Graphviz `dot` binary): `plot_dag(..., style="graphviz")` — `pip install mdmp[graphviz]`
+- **umap-learn**: UMAP technique in group-structure projection — `pip install mdmp[umap]`
+- **notears**: `method="notears"` structure learning (not on PyPI):
 
 ```bash
-# Install from official repository
 pip install git+https://github.com/xunzheng/notears.git
-
-# Or install from a local clone (e.g., if notears is in the same repo)
-pip install -e ../notears
 ```
-
-## Development Setup
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Git
-- (Optional) `uv` package manager for faster dependency management
-
-### Setup Steps
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/maods2/mdmp.git
-   cd mdmp
-   ```
-
-2. **Create and activate a virtual environment:**
-   
-   **Using `uv` (recommended):**
-   ```bash
-   uv venv
-   source .venv/bin/activate  # Linux/Mac
-   # or
-   .venv\Scripts\activate     # Windows
-   uv sync
-   ```
-   
-   **Using `venv`:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
-   # or
-   venv\Scripts\activate     # Windows
-   pip install -e ".[dev]"
-   ```
-
-3. **Install the package in development mode:**
-   ```bash
-   pip install -e .
-   ```
-
-   Or with all development dependencies:
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-### Running Unit Tests
-
-The package uses `pytest` for testing. To run all tests:
-
-```bash
-# Activate virtual environment first
-source .venv/bin/activate  # Linux/Mac
-# or
-.venv-win\Scripts\activate  # Windows (if using .venv-win)
-
-# Run all tests
-pytest tests/ -v
-
-# Run tests for a specific module
-pytest tests/test_scoring.py -v
-pytest tests/test_structure.py -v
-
-# Run tests with coverage (if pytest-cov is installed)
-pytest tests/ -v --cov=mdmp --cov-report=term-missing
-
-# Run tests without coverage (if pytest-cov is not installed)
-pytest tests/ -v -o addopts=
-```
-
-**Note:** If you encounter errors about coverage options and `pytest-cov` is not installed, use the `-o addopts=` flag to override the configuration, or install pytest-cov:
-
-```bash
-pip install pytest-cov
-```
-
-### Test Structure
-
-The test suite includes:
-- **test_dlm.py**: Tests for DLM filtering and smoothing
-- **test_mdm.py**: Tests for MDM class and main functionality
-- **test_scoring.py**: Tests for scoring functions and discount factor selection
-- **test_structure.py**: Tests for structure learning algorithms
-- **test_utils.py**: Tests for utility functions
-- **test_parallel.py**: Tests for parallel processing functionality
-- **test_progress.py**: Tests for progress bar functionality
-- **test_plotting.py**: Tests for plotting functions
-
-### Code Quality and Linting
-
-The project uses **Ruff** for fast Python linting and code quality checks. Ruff is configured in `pyproject.toml` and checks for:
-
-- **E, W**: pycodestyle errors and warnings
-- **F**: Pyflakes (unused imports, undefined names, etc.)
-- **I**: Import sorting (isort)
-- **B**: flake8-bugbear (common bugs and design problems)
-- **C4**: flake8-comprehensions (better list/dict comprehensions)
-- **UP**: pyupgrade (modernize Python syntax)
-
-#### Basic Ruff Commands
-
-```bash
-# Activate virtual environment first
-source .venv/bin/activate  # Linux/Mac
-# or
-.venv-win\Scripts\activate  # Windows
-
-# Check for linting issues (read-only)
-ruff check .
-
-# Check and automatically fix issues
-ruff check --fix .
-
-# Check specific directories
-ruff check mdmp/
-ruff check tests/
-
-# Check only import-related issues
-ruff check . --select I
-
-# Check only style issues
-ruff check . --select E,W
-
-# Show statistics
-ruff check . --statistics
-```
-
-#### Ruff Configuration
-
-The Ruff configuration is in `pyproject.toml`:
-
-```toml
-[tool.ruff]
-line-length = 100
-target-version = "py38"
-select = ["E", "W", "F", "I", "B", "C4", "UP"]
-ignore = ["E501", "B008"]
-```
-
-**Key settings:**
-- `line-length = 100`: Matches Black formatter line length
-- `target-version = "py38"`: Ensures Python 3.8+ compatibility
-- `E501` is ignored: Line length is handled by Black
-- `B008` is ignored: Function calls in argument defaults are sometimes necessary
-
-#### Formatting
-
-The project uses **Black** for code formatting. Ruff can also format code, but Black is the primary formatter:
-
-```bash
-# Format code with Black
-black mdmp/ tests/
-
-# Check formatting without changing files
-black --check mdmp/ tests/
-```
-
-#### Pre-commit Hooks (Optional)
-
-If you have pre-commit configured, Ruff can run automatically:
-
-```bash
-# Install pre-commit hooks
-pre-commit install
-
-# Run manually
-pre-commit run --all-files
-```
-
-#### Common Ruff Workflow
-
-1. **Before committing:**
-   ```bash
-   # Check for issues
-   ruff check .
-   
-   # Auto-fix what can be fixed
-   ruff check --fix .
-   
-   # Format code
-   black mdmp/ tests/
-   ```
-
-2. **For specific issues:**
-   ```bash
-   # Fix only import sorting
-   ruff check --fix . --select I
-   
-   # Check specific file
-   ruff check mdmp/mdm.py
-   ```
-
-3. **In CI/CD:**
-   ```bash
-   # Fail if there are issues
-   ruff check . --output-format=github
-   ```
-- **test_plotting.py**: Tests for plotting functions
-
-All tests should pass before submitting pull requests.
 
 ## Example Usage
 
@@ -594,11 +347,11 @@ By default, the `MDM()` function uses the hill-climbing algorithm to learn the s
 
 Currently available methods:
 
-- **`"hc"`**: **Hill-climbing** (default, fast) - Uses pgmpy's `HillClimbSearch` with custom MDM scoring function. Optimizes the log predictive likelihood per node. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
+- **`"hc"`**: **Hill-climbing** (default, fast) - Uses pgmpy's `HillClimbSearch` with custom MDM scoring function. Optimizes the log predictive likelihood per node.
 
-- **`"mmhc"`**: **Max-Min Hill-Climbing** - First learns an undirected skeleton via MMPC (Max-Min Parents and Children), then orients edges using hill-climbing with custom MDM score. Requires `pgmpy` (install with: `pip install mdmp[hc]`).
+- **`"mmhc"`**: **Max-Min Hill-Climbing** - First learns an undirected skeleton via MMPC (Max-Min Parents and Children), then orients edges using hill-climbing with custom MDM score.
 
-- **`"tabu"`**: **Tabu search** - Uses pgmpy's HillClimbSearch with tabu search enabled (via `tabu_length` parameter). Requires `pgmpy` (install with: `pip install mdmp[hc]`). Supports `tabu_length` parameter (default: 100), `max_iter` (default: 1000000), `epsilon` (default: 0.0001), and other pgmpy HillClimbSearch parameters via `**kwargs`.
+- **`"tabu"`**: **Tabu search** - Uses pgmpy's HillClimbSearch with tabu search enabled (via `tabu_length` parameter). Supports `tabu_length` parameter (default: 100), `max_iter` (default: 1000000), `epsilon` (default: 0.0001), and other pgmpy HillClimbSearch parameters via `**kwargs`.
 
 **Example with tabu search:**
 ```python
@@ -612,7 +365,7 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 - **`"h2pc"`**: H2PC algorithm
 - **`"rsmax2"`**: RSMAX2 algorithm
 
-**Note:** Implemented structure learners use `pgmpy` as the backend (`pip install mdmp[hc]`).
+**Note:** Implemented structure learners use `pgmpy` as the backend (included with `pip install mdmp`).
 
 ### Plotting Functions
 
@@ -702,6 +455,9 @@ import mdmp
 help(mdmp.MDM)
 ```
 
+Release notes live in [`CHANGELOG.md`](CHANGELOG.md). Contributor setup, tests,
+linting, and release steps are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## License
 
 GPL-3.0
@@ -719,48 +475,10 @@ If you use this package in your research, please cite:
 }
 ```
 
-## Versioning and releases
-
-The installed package version is exposed as `mdmp.__version__` (defined in
-[`mdmp/_version.py`](mdmp/_version.py); `pyproject.toml` reads it via setuptools
-dynamic metadata). Human-facing copies in the README (git tag install line and
-the **mdmp** BibTeX block) are kept in sync by **bump-my-version**.
-
-### Changelog
-
-Release notes live in [`CHANGELOG.md`](CHANGELOG.md). During development, add
-bullet points under `## [Unreleased]` using the existing subsections (Added,
-Changed, Fixed, etc.). When you cut a release, rename that section to
-`## [x.y.z] - YYYY-MM-DD` and update the compare links at the bottom of the file.
-
-### Bumping the version
-
-With dev dependencies installed (`uv sync` or `pip install -e ".[dev]"`):
-
-```bash
-# preview
-uvx bump-my-version bump patch --dry-run --verbose --allow-dirty
-
-# apply (use minor / major instead of patch when appropriate)
-uvx bump-my-version bump patch --allow-dirty
-```
-
-This updates `mdmp/_version.py`, `[tool.bumpversion].current_version` in
-`pyproject.toml`, and the README patterns configured under `[tool.bumpversion]`.
-If you use a lockfile for local development, run `uv lock` afterward so `uv.lock`
-stays consistent.
-
-### Release checklist
-
-1. Merge work to `main` and ensure `CHANGELOG.md` describes the release (move
-   items from `[Unreleased]` into a dated `## [x.y.z]` section).
-2. Run `bump-my-version bump` as above, then `uv lock` if applicable.
-3. Commit, create an annotated tag `vx.y.z`, and push the tag. Publish to PyPI
-   using your usual workflow.
-
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request.
+Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for
+development install, tests, linting, and how we cut releases.
 
 ## Acknowledgments
 
@@ -768,6 +486,4 @@ MDMP implements the Bayesian dynamic regression (MDM) approach for multivariate 
 
 - **MDM model**: [Lilia Costa](mailto:liliacosta@ufba.br) and collaborators developed the MDM methodology
 - **MDMP author**: [Matheus Augusto Oliveira dos Santos](mailto:matheusaugusto@ufba.br) — Python implementation and maintenance
-
-Release history lives in [`CHANGELOG.md`](CHANGELOG.md).
 
