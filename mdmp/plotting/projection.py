@@ -163,6 +163,7 @@ def plot_projection(
     subject_ids: Optional[Sequence[Any]] = None,
     ax: Optional[Any] = None,
     random_state: int = 0,
+    show_legend: bool = False,
     **kwargs: Any,
 ) -> Any:
     """Scatter plot of a 2D projection, coloured by cluster or supplied labels."""
@@ -194,7 +195,8 @@ def plot_projection(
         for lab in np.unique(labels_arr):
             m = labels_arr == lab
             ax.scatter(coords[m, 0], coords[m, 1], s=80, label=f"cluster {lab}")
-        ax.legend(frameon=False, fontsize=8)
+        if show_legend:
+            ax.legend(frameon=False, fontsize=8)
 
     for k, sid in enumerate(subject_ids):
         ax.annotate(
@@ -216,6 +218,7 @@ def plot_dendrogram(
     *,
     linkage_method: str = "average",
     color_threshold: Optional[float] = None,
+    leaf_rotation: float = 45.0,
     ax: Optional[Any] = None,
 ) -> Any:
     """Hierarchical-clustering dendrogram of the subject dissimilarity matrix."""
@@ -229,8 +232,15 @@ def plot_dendrogram(
         z,
         labels=[str(s) for s in dist.subject_ids],
         color_threshold=color_threshold,
+        leaf_rotation=leaf_rotation,
+        leaf_font_size=9,
         ax=ax,
     )
+    # Align rotated tick labels so long category names do not overlap.
+    for label in ax.get_xticklabels():
+        label.set_rotation(leaf_rotation)
+        label.set_ha("right")
+        label.set_rotation_mode("anchor")
     ax.set_title(f"MDM subject dendrogram ({linkage_method} linkage)")
     ax.set_ylabel("separation d(i, j)")
     return ax
@@ -243,17 +253,22 @@ def plot_group_embedding(
     n_clusters: int = 2,
     linkage_method: str = "average",
     random_state: int = 0,
+    show_legend: bool = False,
+    figsize: Optional[tuple] = None,
 ) -> Any:
     """Side-by-side projection scatter and dendrogram (Paper #2 style)."""
     import matplotlib.pyplot as plt
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+    if figsize is None:
+        figsize = (13, 5.5)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
     plot_projection(
         dist,
         technique=technique,
         n_clusters=n_clusters,
         ax=ax1,
         random_state=random_state,
+        show_legend=show_legend,
     )
     plot_dendrogram(dist, linkage_method=linkage_method, ax=ax2)
     fig.tight_layout()

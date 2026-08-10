@@ -2,11 +2,13 @@
 Parameter plotting functions for MDM models.
 """
 
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.patches import Patch
 from scipy import stats
 
 from ._input_checks import (
@@ -14,9 +16,23 @@ from ._input_checks import (
     require_filt_for_plot,
     require_smoo_for_plot,
 )
+from ._style import (
+    OBSERVED_COLOR,
+    OKABE_ITO,
+    STREAM_ALPHA,
+    PARAM_BAND_ALPHA,
+    param_color,
+    param_legend_labels,
+    style_time_series_ax,
+    upsample_curve,
+)
+from ..anomaly import detect_anomalies
 
 if TYPE_CHECKING:
     pass
+
+_UNSET = object()  # sentinel: use built-in default title
+
 
 _MAX_ARC_COLS = 4
 
@@ -206,7 +222,11 @@ def plot_marginal(
     target_node: int,
     distribution: Literal["filt", "smoo"] = "filt",
     scale_series: bool = False,
-    figsize: Optional[tuple] = None
+    figsize: Optional[tuple] = None,
+    smooth: bool = True,
+    smooth_factor: int = 5,
+    *,
+    title: Optional[str] = _UNSET,  # type: ignore[assignment]
 ) -> Figure:
     """
     Plot marginal posterior for a target node.
@@ -223,6 +243,13 @@ def plot_marginal(
         Whether to scale time series. Default is False.
     figsize : tuple, optional
         Figure size. Default is (10, 6).
+    smooth : bool, optional
+        Upsample parameter curves for smooth display (visual only). Default is True.
+    smooth_factor : int, optional
+        Upsampling factor when ``smooth`` is True. Default is 5.
+    title : str or None, optional
+        Axes title. Defaults to ``"Marginal posterior: node <name>"``.
+        Pass ``None`` to omit a title.
 
     Returns
     -------
@@ -250,28 +277,62 @@ def plot_marginal(
 
     T = mt_node.shape[1]
     time = np.arange(T)
+    labels = param_legend_labels(mdm_object, target_node, distribution)
 
-    # Plot observed data
+    # Observed series (raw data — not smoothed)
     observed = mdm_object.data[:, target_node]
     if scale_series:
         observed = (observed - np.mean(observed)) / np.std(observed)
-    ax.plot(time, observed, 'k-', alpha=0.5, label='Observed', linewidth=1)
+    ax.plot(
+        time,
+        observed,
+        color=OBSERVED_COLOR,
+        alpha=0.45,
+        label="observed",
+        linewidth=1.0,
+        zorder=1,
+    )
 
-    # Plot parameters
+    # Posterior parameter means
     for param in range(mt_node.shape[0]):
         param_vals = mt_node[param, :]
         if scale_series:
             param_vals = (param_vals - np.mean(param_vals)) / np.std(param_vals)
-        ax.plot(time, param_vals, label=f'Parameter {param}', linewidth=2)
+        plot_t, plot_y = upsample_curve(
+            time, param_vals, factor=smooth_factor, smooth=smooth
+        )
+        color = param_color(param)
+        label = labels[param] if param < len(labels) else f"param {param}"
+        y_span = float(np.nanmax(plot_y) - np.nanmin(plot_y))
+        band = max(0.02 * y_span, 0.05 * np.nanstd(plot_y))
+        ax.fill_between(
+            plot_t,
+            plot_y - band,
+            plot_y + band,
+            color=color,
+            alpha=PARAM_BAND_ALPHA,
+            linewidth=0,
+            zorder=param + 1,
+        )
+        ax.plot(
+            plot_t,
+            plot_y,
+            color=color,
+            label=label,
+            linewidth=2.0,
+            zorder=param + 2,
+        )
 
-    ax.set_xlabel('Time', fontsize=12)
-    ax.set_ylabel('Value', fontsize=12)
-    ax.set_title(
-        f'Marginal Posterior: Node {mdm_object.node_names[target_node] if hasattr(mdm_object, "node_names") else target_node}',
-        fontsize=14
+    node_label = (
+        mdm_object.node_names[target_node]
+        if hasattr(mdm_object, "node_names")
+        else target_node
     )
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    if title is _UNSET:
+        title = f"Marginal posterior: node {node_label}"
+    if title is not None:
+        ax.set_title(title, fontsize=12, pad=10)
+    style_time_series_ax(ax, ylabel="Parameter")
 
     plt.tight_layout()
     return fig
@@ -281,7 +342,11 @@ def plot_stream(
     mdm_object: Any,
     child_node: int,
     distribution: Literal["filt", "smoo"] = "filt",
-    figsize: Optional[tuple] = None
+    figsize: Optional[tuple] = None,
+    smooth: bool = True,
+    smooth_factor: int = 5,
+    *,
+    title: Optional[str] = _UNSET,  # type: ignore[assignment]
 ) -> Figure:
     """
     Plot stream plot showing parent contributions to a child node.
@@ -296,6 +361,13 @@ def plot_stream(
         Use filtered or smoothed estimates. Default is "filt".
     figsize : tuple, optional
         Figure size. Default is (12, 6).
+    smooth : bool, optional
+        Upsample contribution curves for smooth display (visual only). Default is True.
+    smooth_factor : int, optional
+        Upsampling factor when ``smooth`` is True. Default is 5.
+    title : str or None, optional
+        Axes title. Defaults to ``"Parent contributions to node <name>"``.
+        Pass ``None`` to omit a title.
 
     Returns
     -------
@@ -321,23 +393,245 @@ def plot_stream(
         mt_node = mt_node.reshape(1, -1)
 
     T = mt_node.shape[1]
-    time = np.arange(T)
+    time = np.arange(T, dtype=float)
+    labels = param_legend_labels(mdm_object, child_node, distribution)
+    n_params = mt_node.shape[0]
 
-    # Stack plot
+    plot_time = time
+    layers = []
+    for i in range(n_params):
+        plot_t, plot_y = upsample_curve(
+            time, mt_node[i, :], factor=smooth_factor, smooth=smooth
+        )
+        if i == 0:
+            plot_time = plot_t
+        layers.append(plot_y)
+
+    colors = [param_color(i) for i in range(n_params)]
     ax.stackplot(
-        time, *[mt_node[i, :] for i in range(mt_node.shape[0])],
-        labels=[f'Param {i}' for i in range(mt_node.shape[0])],
-        alpha=0.7
+        plot_time,
+        *layers,
+        colors=colors,
+        alpha=STREAM_ALPHA,
+        linewidth=0,
+        edgecolor="none",
     )
 
-    ax.set_xlabel('Time', fontsize=12)
-    ax.set_ylabel('Contribution', fontsize=12)
-    ax.set_title(
-        f'Parent Contributions to Node {mdm_object.node_names[child_node] if hasattr(mdm_object, "node_names") else child_node}',
-        fontsize=14
+    node_label = (
+        mdm_object.node_names[child_node]
+        if hasattr(mdm_object, "node_names")
+        else child_node
     )
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    if title is _UNSET:
+        title = f"Parent contributions to node {node_label}"
+    if title is not None:
+        ax.set_title(title, fontsize=12, pad=10)
+    style_time_series_ax(
+        ax,
+        ylabel="Contribution",
+        show_zero_line=False,
+        grid_alpha=0.2,
+        legend=False,
+    )
+    ax.legend(
+        handles=[
+            Patch(
+                facecolor=colors[i],
+                edgecolor="none",
+                alpha=STREAM_ALPHA,
+                label=labels[i] if i < len(labels) else f"param {i}",
+            )
+            for i in range(n_params)
+        ],
+        fontsize=9,
+        loc="upper right",
+        framealpha=0.9,
+    )
 
     plt.tight_layout()
+    return fig
+
+
+def plot_anomalies(
+    mdm_object: Any,
+    series: Union[int, str] = 0,
+    *,
+    ci_level: float = 0.95,
+    figsize: Optional[tuple] = None,
+    ax: Optional[Axes] = None,
+    time_index: Optional[Any] = None,
+    show_observed_markers: bool = True,
+    observed_lw: float = 1.0,
+    mean_lw: float = 1.6,
+    anomaly_size: float = 36.0,
+    band_alpha: Optional[float] = None,
+) -> Figure:
+    """
+    Plot observed series against the MDM predictive mean and interval.
+
+    Calls :func:`mdmp.anomaly.detect_anomalies` for the selected node and draws:
+
+    - observed values as a connected polyline (optional circular markers;
+      no smoothing or upsampling)
+    - one-step predictive mean and ``ci_level`` band
+    - anomalies marked with ``x``
+
+    Parameters
+    ----------
+    mdm_object
+        Fitted :class:`~mdmp.model.MDM` (or compatible) with ``data`` and ``Filt``.
+    series : int or str, optional
+        Node index or name. Default is ``0``.
+    ci_level : float, optional
+        Predictive interval level. Default is ``0.95``.
+    figsize : tuple, optional
+        Figure size when ``ax`` is not provided. Default is ``(10, 4)``.
+    ax : matplotlib.axes.Axes, optional
+        Axes to draw on. If omitted, a new figure is created.
+    time_index : sequence, optional
+        Optional x-axis labels of length ``T`` (e.g. dates).
+    show_observed_markers : bool, optional
+        Draw circular markers on the observed series. Default is ``True``.
+        Set ``False`` for dense multi-panel figures.
+    observed_lw, mean_lw : float, optional
+        Line widths for observed and predictive mean.
+    anomaly_size : float, optional
+        Marker size for anomaly ``x`` marks.
+    band_alpha : float, optional
+        Opacity of the predictive interval fill. Default uses the shared
+        style constant.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Figure containing the axes.
+
+    Examples
+    --------
+    >>> from mdmp import MDM, plot_anomalies  # doctest: +SKIP
+    >>> fig = plot_anomalies(model, series=0, ci_level=0.95)  # doctest: +SKIP
+    """
+    if series is None:
+        raise TypeError("plot_anomalies requires a single series (int or str).")
+
+    result = detect_anomalies(
+        mdm_object,
+        ci_level=ci_level,
+        series=series,
+        output="result",
+        time_index=time_index,
+    )
+    y = np.asarray(result.observed, dtype=float).ravel()
+    mean = np.asarray(result.fitted_mean, dtype=float).ravel()
+    lower = np.asarray(result.lower, dtype=float).ravel()
+    upper = np.asarray(result.upper, dtype=float).ravel()
+    is_anom = np.asarray(result.is_anomaly, dtype=bool).ravel()
+    t = y.shape[0]
+    if result.time_index is not None:
+        time = np.asarray(result.time_index)
+    else:
+        time = np.arange(t)
+    node_label = result.node_names[0] if result.node_names else str(series)
+
+    created_fig = ax is None
+    if created_fig:
+        if figsize is None:
+            figsize = (10, 4)
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
+
+    mean_color = OKABE_ITO["blue"]
+    anom_color = OKABE_ITO["red"]
+    band_label = f"{ci_level * 100:.0f}% predictive interval"
+    fill_alpha = PARAM_BAND_ALPHA if band_alpha is None else float(band_alpha)
+
+    band_ok = np.isfinite(lower) & np.isfinite(upper)
+    mean_plot = np.asarray(mean, dtype=float).copy()
+    mean_plot[~np.isfinite(mean_plot) | ~band_ok] = np.nan
+
+    ax.fill_between(
+        time,
+        lower,
+        upper,
+        where=band_ok,
+        color=mean_color,
+        alpha=fill_alpha,
+        label=band_label,
+        zorder=1,
+        interpolate=False,
+    )
+    ax.plot(
+        time,
+        mean_plot,
+        color=mean_color,
+        lw=mean_lw,
+        label="Predictive mean",
+        zorder=2,
+    )
+    observed_kwargs: dict[str, Any] = {
+        "color": OBSERVED_COLOR,
+        "lw": observed_lw,
+        "alpha": 0.9,
+        "label": "Observed",
+        "zorder": 3,
+    }
+    if show_observed_markers:
+        observed_kwargs.update(
+            marker="o",
+            markersize=3.2,
+            markerfacecolor=OBSERVED_COLOR,
+            markeredgewidth=0.0,
+        )
+    ax.plot(time, y, **observed_kwargs)
+    if np.any(is_anom):
+        ax.scatter(
+            time[is_anom],
+            y[is_anom],
+            marker="x",
+            s=anomaly_size,
+            color=anom_color,
+            linewidths=1.35,
+            zorder=4,
+            label="Anomaly",
+        )
+
+    # Scale y primarily from the observed series so wide early predictive
+    # bands do not flatten the panel; expand slightly for finite bands that
+    # stay within a few times the observed range.
+    y_finite = y[np.isfinite(y)]
+    if y_finite.size:
+        y_min = float(np.min(y_finite))
+        y_max = float(np.max(y_finite))
+        y_span = y_max - y_min if y_max > y_min else max(abs(y_max), 1.0)
+        if np.any(band_ok):
+            band_vals = np.concatenate(
+                [lower[band_ok], upper[band_ok], mean[band_ok]]
+            )
+            band_vals = band_vals[np.isfinite(band_vals)]
+            # Ignore extreme band tails relative to the observed span.
+            lo_clip = y_min - 1.5 * y_span
+            hi_clip = y_max + 1.5 * y_span
+            band_vals = band_vals[(band_vals >= lo_clip) & (band_vals <= hi_clip)]
+            if band_vals.size:
+                y_min = min(y_min, float(np.min(band_vals)))
+                y_max = max(y_max, float(np.max(band_vals)))
+                y_span = y_max - y_min if y_max > y_min else max(abs(y_max), 1.0)
+        pad = 0.08 * y_span
+        ax.set_ylim(y_min - pad, y_max + pad)
+
+    if created_fig:
+        ax.set_title(str(node_label), fontsize=11)
+        style_time_series_ax(
+            ax,
+            ylabel="Value",
+            show_zero_line=False,
+            grid_alpha=0.25,
+            legend=True,
+        )
+        plt.tight_layout()
+    else:
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.grid(True, alpha=0.25)
     return fig

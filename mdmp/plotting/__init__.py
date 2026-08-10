@@ -7,7 +7,7 @@ dynamic parameters, marginal posteriors, stream plots, and animated heatmaps.
 
 from .animation import plot_idag
 from .dag import plot_dag
-from .parameters import plot_arcs, plot_marginal, plot_stream
+from .parameters import plot_anomalies, plot_arcs, plot_marginal, plot_stream
 from .projection import (
     plot_dendrogram,
     plot_group_embedding,
@@ -18,6 +18,7 @@ from .projection import (
 __all__ = [
     "plot_dag",
     "plot_arcs",
+    "plot_anomalies",
     "plot_marginal",
     "plot_stream",
     "plot_idag",

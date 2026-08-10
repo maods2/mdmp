@@ -5,6 +5,7 @@ Tests for plotting functions.
 import sys
 from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
 import pytest
 
 from mdmp import MDM
@@ -87,6 +88,42 @@ def test_plot_stream_does_not_crash(mock_mdm_model):
     fig = plot_stream(mock_mdm_model, child_node=0, distribution="filt")
     assert fig is not None
 
+    fig = plot_stream(mock_mdm_model, child_node=0, distribution="filt", smooth=False)
+    assert fig is not None
+
+
+def test_plot_anomalies_does_not_crash(mock_mdm_model):
+    """Smoke test for plot_anomalies."""
+    from mdmp.plotting import plot_anomalies
+
+    fig = plot_anomalies(mock_mdm_model, series=0, ci_level=0.95)
+    assert fig is not None
+    assert len(fig.axes) >= 1
+    ax = fig.axes[0]
+    assert ax.get_legend() is not None
+    assert len(ax.get_lines()) >= 2
+
+
+def test_plot_marginal_smooth_and_labels(mock_mdm_model):
+    from mdmp.plotting import plot_marginal
+    from mdmp.plotting._style import format_param_label, upsample_curve
+
+    assert format_param_label("beta0_Y1") == "intercept"
+    assert format_param_label("Y1->Y2") == "Y1→Y2"
+
+    t = np.arange(10, dtype=float)
+    y = np.sin(t)
+    fine_t, fine_y = upsample_curve(t, y, factor=4)
+    assert len(fine_t) == 40
+    assert fine_t[0] == 0.0 and fine_t[-1] == 9.0
+    assert np.allclose(fine_y[0], y[0], atol=0.01)
+    assert np.allclose(fine_y[-1], y[-1], atol=0.01)
+
+    fig = plot_marginal(mock_mdm_model, target_node=0, distribution="filt", smooth=True)
+    ax = fig.axes[0]
+    assert ax.get_legend() is not None
+    assert len(ax.get_lines()) >= 1
+
 
 def test_plot_dag_parameter_validation(mock_mdm_model):
     """Test plot_dag parameter validation."""
@@ -99,3 +136,65 @@ def test_plot_dag_parameter_validation(mock_mdm_model):
         plot_type="graph"
     )
     assert fig is not None
+
+
+def test_plot_title_custom_and_none(mock_mdm_model):
+    """Optional title= overrides defaults; None omits ax.set_title."""
+    from mdmp.plotting import plot_dag, plot_marginal, plot_stream
+
+    fig = plot_dag(mock_mdm_model, plot_type="graph", title="Custom")
+    assert fig.axes[0].get_title() == "Custom"
+
+    fig = plot_dag(mock_mdm_model, plot_type="graph", title=None)
+    assert fig.axes[0].get_title() == ""
+
+    fig = plot_dag(mock_mdm_model, plot_type="heatmap", title="Custom heat")
+    assert fig.axes[0].get_title() == "Custom heat"
+
+    fig = plot_dag(mock_mdm_model, plot_type="heatmap", title=None)
+    assert fig.axes[0].get_title() == ""
+
+    fig = plot_marginal(mock_mdm_model, target_node=0, title="Custom")
+    assert fig.axes[0].get_title() == "Custom"
+
+    fig = plot_marginal(mock_mdm_model, target_node=0, title=None)
+    assert fig.axes[0].get_title() == ""
+
+    fig = plot_stream(mock_mdm_model, child_node=0, title="Custom")
+    assert fig.axes[0].get_title() == "Custom"
+
+    fig = plot_stream(mock_mdm_model, child_node=0, title=None)
+    assert fig.axes[0].get_title() == ""
+
+
+def test_plot_dag_graphviz_style(mock_mdm_model):
+    """Graphviz style renders when pydot + dot are available; else clear error."""
+    from mdmp.plotting import plot_dag
+
+    try:
+        import pydot  # noqa: F401
+    except ImportError:
+        with pytest.raises(ImportError, match="pydot"):
+            plot_dag(mock_mdm_model, style="graphviz")
+        return
+
+    try:
+        fig = plot_dag(
+            mock_mdm_model,
+            node_labels=["A", "B"],
+            style="graphviz",
+        )
+    except RuntimeError as exc:
+        # pydot installed but Graphviz binary missing
+        assert "dot" in str(exc).lower() or "graphviz" in str(exc).lower()
+        return
+
+    assert fig is not None
+    assert len(fig.axes) >= 1
+
+
+def test_plot_dag_unknown_style(mock_mdm_model):
+    from mdmp.plotting import plot_dag
+
+    with pytest.raises(ValueError, match="Unknown style"):
+        plot_dag(mock_mdm_model, style="plotly")  # type: ignore[arg-type]

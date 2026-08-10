@@ -61,6 +61,9 @@ class MDM:
             Discount factor grid. Default is np.arange(0.5, 1.01, 0.01).
         verbose : bool, optional
             Print progress messages. Default is True.
+            When False, also raises the ``pgmpy`` logger to WARNING during
+            structure learning (silencing INFO messages such as datatype
+            inference) and defaults ``show_progress=False`` for pgmpy estimators.
         n_jobs : int, optional
             Parallel workers. None/1 = serial, -1 = all cores, >1 = that many workers.
         **kwargs

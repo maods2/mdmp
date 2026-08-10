@@ -1,123 +1,140 @@
 """
 Plotting Functions Example
 
-This example demonstrates all plotting functions available in MDMP:
-1. plot_dag() - DAG structure visualization (graph and heatmap)
-2. plot_arcs() - Dynamic parameters over time
-3. plot_marginal() - Marginal posterior for a target node
-4. plot_stream() - Parent contributions to a child node
-5. plot_idag() - Animated heatmap (optional, creates GIF)
+Covers the public plotting entry points:
+  plot_dag, plot_arcs, plot_marginal, plot_stream, plot_idag,
+  plot_anomalies, plot_dendrogram, plot_projection, plot_group_embedding
 
-Note: Some plots require matplotlib display backend. Adjust as needed.
+Figures are saved under examples/plot_examples/ (Agg backend).
 """
 
-import os
+from pathlib import Path
 
 import matplotlib
 import numpy as np
-import pandas as pd
 
-matplotlib.use('Agg')  # Use non-interactive backend for saving files
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mdmp import MDM, plot_arcs, plot_dag, plot_marginal, plot_stream
+from mdmp import (
+    MDM,
+    compute_mdm_distance,
+    fit_individual_structures,
+    load_dataset,
+    plot_anomalies,
+    plot_arcs,
+    plot_dag,
+    plot_dendrogram,
+    plot_group_embedding,
+    plot_idag,
+    plot_marginal,
+    plot_projection,
+    plot_stream,
+)
 
-# Set random seed for reproducibility
 np.random.seed(42)
 
-# Generate synthetic time series data
-data_df = pd.read_csv("./data/mdmr_test_data.csv")
-_, N = data_df.shape
+data_df = load_dataset("mdmr_test_data")
+_, n_nodes = data_df.shape
 
 print("=" * 60)
 print("Plotting Functions Example")
 print("=" * 60)
 
-# Fit MDM model
 print("\nFitting MDM model...")
 model = MDM(data_df, method="hc", nbf=15, verbose=False)
 
-# Create output directory for plots
-output_dir = "plot_examples"
-os.makedirs(output_dir, exist_ok=True)
+output_dir = Path(__file__).resolve().parent / "plot_examples"
+output_dir.mkdir(parents=True, exist_ok=True)
+print(f"\nSaving plots to '{output_dir}/' ...")
 
-print(f"\nSaving plots to '{output_dir}/' directory...")
 
-# 1. Plot DAG - Graph view
-print("\n1. Plotting DAG (graph view)...")
-fig1 = plot_dag(model, plot_type="graph", figsize=(10, 8), layout_seed=5)
-fig1.savefig(f"{output_dir}/dag_graph.png", dpi=150, bbox_inches='tight')
-plt.close(fig1)
-print(f"   Saved: {output_dir}/dag_graph.png")
+def _save(fig, name: str) -> None:
+    path = output_dir / name
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"   Saved: {path.name}")
 
-# 2. Plot DAG - Heatmap view
-print("\n2. Plotting DAG (heatmap view)...")
-fig2 = plot_dag(model, plot_type="heatmap", figsize=(8, 8))
-fig2.savefig(f"{output_dir}/dag_heatmap.png", dpi=150, bbox_inches='tight')
-plt.close(fig2)
-print(f"   Saved: {output_dir}/dag_heatmap.png")
 
-# 3. Plot dynamic parameters (connections)
-print("\n3. Plotting dynamic parameters (connections)...")
-fig3 = plot_arcs(model, plot_type="connections", distribution="filt", ci_level=0.95)
-fig3.savefig(f"{output_dir}/dynamic_parameters.png", dpi=150, bbox_inches='tight')
-plt.close(fig3)
-print(f"   Saved: {output_dir}/dynamic_parameters.png")
+print("\n1. plot_dag (graph)...")
+_save(plot_dag(model, plot_type="graph", figsize=(10, 8), layout_seed=5), "dag_graph.png")
 
-# 4. Plot dynamic parameters (intercepts)
-print("\n4. Plotting dynamic parameters (intercepts)...")
-fig4 = plot_arcs(model, plot_type="intercepts", distribution="filt")
-fig4.savefig(f"{output_dir}/intercepts.png", dpi=150, bbox_inches='tight')
-plt.close(fig4)
-print(f"   Saved: {output_dir}/intercepts.png")
+print("\n2. plot_dag (heatmap)...")
+_save(plot_dag(model, plot_type="heatmap", figsize=(8, 8)), "dag_heatmap.png")
 
-# 5. Plot marginal posterior for first node
-print("\n5. Plotting marginal posterior for node 'A'...")
-fig5 = plot_marginal(model, target_node=0, distribution="filt")
-fig5.savefig(f"{output_dir}/marginal_posterior.png", dpi=150, bbox_inches='tight')
-plt.close(fig5)
-print(f"   Saved: {output_dir}/marginal_posterior.png")
+print("\n3. plot_arcs (connections)...")
+_save(
+    plot_arcs(model, plot_type="connections", distribution="filt", ci_level=0.95),
+    "dynamic_parameters.png",
+)
 
-# 6. Plot marginal posterior (smoothed)
-print("\n6. Plotting marginal posterior (smoothed) for node 'A'...")
-fig6 = plot_marginal(model, target_node=0, distribution="smoo")
-fig6.savefig(f"{output_dir}/marginal_posterior_smoothed.png", dpi=150, bbox_inches='tight')
-plt.close(fig6)
-print(f"   Saved: {output_dir}/marginal_posterior_smoothed.png")
+print("\n4. plot_arcs (intercepts)...")
+_save(plot_arcs(model, plot_type="intercepts", distribution="filt"), "intercepts.png")
 
-# 7. Plot stream (parent contributions) - only if node has parents
-print("\n7. Plotting parent contributions (stream plot)...")
-# Find a node with parents
-node_with_parents = None
-for i in range(N):
-    if np.sum(model.adj_mat[:, i]) > 0:  # Has at least one parent
-        node_with_parents = i
-        break
+print("\n5. plot_marginal (filtered)...")
+_save(plot_marginal(model, target_node=0, distribution="filt"), "marginal_posterior.png")
 
+print("\n6. plot_marginal (smoothed)...")
+_save(
+    plot_marginal(model, target_node=0, distribution="smoo"),
+    "marginal_posterior_smoothed.png",
+)
+
+print("\n7. plot_stream (parent contributions)...")
+node_with_parents = next(
+    (i for i in range(n_nodes) if np.sum(model.adj_mat[:, i]) > 0),
+    None,
+)
 if node_with_parents is not None:
     node_name = model.node_names[node_with_parents]
-    fig7 = plot_stream(model, child_node=node_with_parents, distribution="filt")
-    fig7.savefig(f"{output_dir}/stream_plot_{node_name}.png", dpi=150, bbox_inches='tight')
-    plt.close(fig7)
-    print(f"   Saved: {output_dir}/stream_plot_{node_name}.png (for node {node_name})")
-else:
-    print("   Skipped: No nodes with parents found")
-
-# 8. Plot animated heatmap (creates GIF)
-print("\n8. Creating animated heatmap (this may take a moment)...")
-try:
-    from mdmp.plotting import plot_idag
-    anim = plot_idag(
-        model,
-        output_gif=f"{output_dir}/animated_heatmap.gif",
-        fps=5,
-        distribution="filt"
+    _save(
+        plot_stream(model, child_node=node_with_parents, distribution="filt"),
+        f"stream_plot_{node_name}.png",
     )
-    print(f"   Saved: {output_dir}/animated_heatmap.gif")
-except Exception as e:
-    print(f"   Note: Animated plot requires additional dependencies: {e}")
+else:
+    print("   Skipped: no nodes with parents")
+
+print("\n8. plot_anomalies...")
+_save(plot_anomalies(model, series=0, ci_level=0.95), "anomalies.png")
+
+print("\n9. plot_idag (animated heatmap)...")
+try:
+    plot_idag(
+        model,
+        output_gif=str(output_dir / "animated_heatmap.gif"),
+        fps=5,
+        distribution="filt",
+    )
+    print("   Saved: animated_heatmap.gif")
+except Exception as exc:  # pragma: no cover - optional deps / backend
+    print(f"   Note: animated plot skipped ({exc})")
+
+# Tiny multi-subject cohort for GS plots
+print("\n10. GS cohort plots (dendrogram / projection / embedding)...")
+rng = np.random.default_rng(0)
+subjects = []
+for _ in range(4):
+    e = rng.normal(size=(50, 3))
+    x = np.zeros_like(e)
+    x[:, 0] = e[:, 0]
+    x[:, 1] = 0.6 * x[:, 0] + e[:, 1]
+    x[:, 2] = e[:, 2]
+    subjects.append(x)
+
+inds = fit_individual_structures(subjects, method="hc", nbf=10, verbose=False)
+dist = compute_mdm_distance(inds, nbf=10, verbose=False)
+
+fig_d, ax_d = plt.subplots(figsize=(7, 4))
+plot_dendrogram(dist, ax=ax_d)
+_save(fig_d, "dendrogram.png")
+
+fig_p, ax_p = plt.subplots(figsize=(6, 5))
+plot_projection(dist, technique="mds", n_clusters=2, ax=ax_p)
+_save(fig_p, "projection.png")
+
+_save(plot_group_embedding(dist, technique="mds", n_clusters=2), "group_embedding.png")
 
 print("\n" + "=" * 60)
 print("All plots saved successfully!")
-print(f"Check the '{output_dir}/' directory for output files.")
+print(f"Check '{output_dir}' for output files.")
 print("=" * 60)

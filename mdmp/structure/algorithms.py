@@ -5,14 +5,54 @@ This module implements the base class and concrete algorithm implementations
 using the Strategy pattern.
 """
 
+from __future__ import annotations
+
+import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from contextlib import contextmanager
+from typing import Iterator, List, Optional
 
 import numpy as np
 import pandas as pd
 
 from .scoring import MdmStructureScore
 from .utils import extract_adjacency_from_model
+
+
+@contextmanager
+def _pgmpy_verbosity(verbose: bool) -> Iterator[None]:
+    """
+    Align pgmpy logging / progress bars with MDM ``verbose``.
+
+    When ``verbose`` is False:
+
+    - raise the ``pgmpy`` logger to WARNING so INFO messages (e.g. datatype
+      inference) are not emitted;
+    - set ``pgmpy.global_vars.config.SHOW_PROGRESS`` to False so tqdm bars are
+      suppressed even if an estimator forgets ``show_progress=False``.
+
+    Restores the previous logger level and progress flag on exit.
+    """
+    logger = logging.getLogger("pgmpy")
+    previous_level = logger.level
+    previous_progress = None
+    config = None
+    if not verbose:
+        logger.setLevel(logging.WARNING)
+        try:
+            from pgmpy.global_vars import config
+
+            previous_progress = config.get_show_progress()
+            config.set_show_progress(False)
+        except Exception:
+            config = None
+            previous_progress = None
+    try:
+        yield
+    finally:
+        logger.setLevel(previous_level)
+        if previous_progress is not None and config is not None:
+            config.set_show_progress(previous_progress)
 
 
 def _build_pgmpy_score(df, node_names, nbf):
@@ -184,6 +224,13 @@ class PgmpyAlgorithmMixin:
         cleaned.pop("scoring_method", None)
         return cleaned
 
+    def _pgmpy_kwargs(self, kwargs: dict) -> dict:
+        """Clean kwargs and default ``show_progress`` from ``self.verbose``."""
+        cleaned = self._clean_kwargs(kwargs)
+        if not getattr(self, "verbose", True) and "show_progress" not in cleaned:
+            cleaned["show_progress"] = False
+        return cleaned
+
 
 class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
     """
@@ -218,11 +265,12 @@ class HillClimbingAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         except AttributeError as exc:
             raise _pgmpy_import_error_hint(exc) from exc
 
-        df, columns = self._prepare_dataframe(data, node_names)
-        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
-        model = HillClimbSearch(df).estimate(
-            scoring_method=mdm_score, **self._clean_kwargs(kwargs)
-        )
+        with _pgmpy_verbosity(self.verbose):
+            df, columns = self._prepare_dataframe(data, node_names)
+            columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
+            model = HillClimbSearch(df).estimate(
+                scoring_method=mdm_score, **self._pgmpy_kwargs(kwargs)
+            )
         return extract_adjacency_from_model(model, columns)
 
 
@@ -282,12 +330,15 @@ class TabuAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         except AttributeError as exc:
             raise _pgmpy_import_error_hint(exc) from exc
 
-        df, columns = self._prepare_dataframe(data, node_names)
-        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
-        tabu_kwargs = self._clean_kwargs(kwargs)
-        if "tabu_length" not in tabu_kwargs:
-            tabu_kwargs["tabu_length"] = 100
-        model = HillClimbSearch(df).estimate(scoring_method=mdm_score, **tabu_kwargs)
+        with _pgmpy_verbosity(self.verbose):
+            df, columns = self._prepare_dataframe(data, node_names)
+            columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
+            tabu_kwargs = self._pgmpy_kwargs(kwargs)
+            if "tabu_length" not in tabu_kwargs:
+                tabu_kwargs["tabu_length"] = 100
+            model = HillClimbSearch(df).estimate(
+                scoring_method=mdm_score, **tabu_kwargs
+            )
         return extract_adjacency_from_model(model, columns)
 
 
@@ -327,11 +378,12 @@ class MMHCAlgorithm(BaseLearningAlgorithm, PgmpyAlgorithmMixin):
         except AttributeError as exc:
             raise _pgmpy_import_error_hint(exc) from exc
 
-        df, columns = self._prepare_dataframe(data, node_names)
-        columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
-        model = MmhcEstimator(df).estimate(
-            scoring_method=mdm_score, **self._clean_kwargs(kwargs)
-        )
+        with _pgmpy_verbosity(self.verbose):
+            df, columns = self._prepare_dataframe(data, node_names)
+            columns, mdm_score = _build_pgmpy_score(df, node_names, nbf)
+            model = MmhcEstimator(df).estimate(
+                scoring_method=mdm_score, **self._pgmpy_kwargs(kwargs)
+            )
         return extract_adjacency_from_model(model, columns)
 
 
