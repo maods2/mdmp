@@ -30,7 +30,7 @@ class MDMDistanceResult:
     individuals : list
         Per-subject fitted :class:`mdmp.model.MDM` objects (stage 1 artifact).
     metadata : dict
-        Extra info (discount factors, self-LPL, common_structure, nbf, ...).
+        Extra info (discount factors, self-LPL, nbf, ...).
     """
 
     condensed: np.ndarray

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Pairwise GS common-structure via time-stacked concatenation
+  (`common_structure="concat"`). `compute_mdm_distance` now always learns the
+  pairwise common DAG by joint LPL hill-climb; the `common_structure` argument
+  has been removed.
+
 ### Added
 
 - `aggregate_individual_structures`: `mc_n_jobs` to parallelize Monte Carlo over filter

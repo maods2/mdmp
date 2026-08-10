@@ -194,9 +194,7 @@ def test_to_similarity_and_to_frame(two_group_cohort):
 
 def test_joint_common_structure_runs(two_group_cohort):
     subjects, _ = two_group_cohort
-    dist = compute_mdm_distance(
-        subjects, common_structure="joint", nbf=10, verbose=False
-    )
+    dist = compute_mdm_distance(subjects, nbf=10, verbose=False)
     assert isinstance(dist, MDMDistanceResult)
     assert dist.metadata["common_structure"] == "joint"
     assert np.all(np.isfinite(dist.matrix))

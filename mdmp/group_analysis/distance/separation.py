@@ -3,34 +3,17 @@
 from __future__ import annotations
 
 from itertools import combinations
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
 from ..._node_dispatch import _parallel_map
 from ...scoring import select_discount_factors
-from ...structure import StructureLearner
 from ...utils import get_default_delta
 from .coercion import coerce_subjects_for_distance, default_subject_ids
 from .estimation import fit_individual_structures
 from .metrics import MetricFn, joint_lpl, resolve_metric
 from .types import MDMDistanceResult
-
-
-def _fit_pairwise_common_structure_concat(
-    data_i: np.ndarray,
-    data_j: np.ndarray,
-    method: str,
-    nbf: int,
-    delta_grid: np.ndarray,
-    node_names: Optional[List[str]],
-) -> np.ndarray:
-    """Learn common DAG on time-wise concatenation (VTS-concat surrogate)."""
-    pair = np.vstack([data_i, data_j])
-    learner = StructureLearner(verbose=False)
-    return learner.learn_structure(
-        data=pair, method=method, nbf=nbf, delta=delta_grid, node_names=node_names
-    )
 
 
 def _is_acyclic(adj: np.ndarray) -> bool:
@@ -82,7 +65,6 @@ def _fit_pairwise_common_structure_joint(
     if not _is_acyclic(adj):
         adj = np.zeros((n, n), dtype=int)
 
-    data_list = [data_i, data_j]
     best_score = _joint_score_pair(adj, data_i, data_j, nbf, delta_grid)
 
     for _ in range(max_iter):
@@ -160,11 +142,8 @@ def _pair_worker(args: Tuple) -> Tuple[int, int, float]:
         mdms,
         metric_fn,
         metric_needs_common,
-        method,
         nbf,
         delta_grid,
-        node_names,
-        common_structure,
         self_lpl,
     ) = args
 
@@ -178,16 +157,11 @@ def _pair_worker(args: Tuple) -> Tuple[int, int, float]:
     if metric_needs_common:
         data_i = np.asarray(mdms[i].data, dtype=float)
         data_j = np.asarray(mdms[j].data, dtype=float)
-        if common_structure == "joint":
-            adj_i = np.asarray(mdms[i].adj_mat, dtype=int)
-            adj_j = np.asarray(mdms[j].adj_mat, dtype=int)
-            ctx["common_adj"] = _fit_pairwise_common_structure_joint(
-                data_i, data_j, adj_i, adj_j, nbf, delta_grid
-            )
-        else:
-            ctx["common_adj"] = _fit_pairwise_common_structure_concat(
-                data_i, data_j, method, nbf, delta_grid, node_names
-            )
+        adj_i = np.asarray(mdms[i].adj_mat, dtype=int)
+        adj_j = np.asarray(mdms[j].adj_mat, dtype=int)
+        ctx["common_adj"] = _fit_pairwise_common_structure_joint(
+            data_i, data_j, adj_i, adj_j, nbf, delta_grid
+        )
 
     d = metric_fn(mdms[i], mdms[j], ctx=ctx)
     return i, j, float(d)
@@ -197,7 +171,6 @@ def compute_mdm_distance(
     subjects: Sequence[Union[np.ndarray, Any]],
     *,
     metric: Union[str, MetricFn] = "lpl_separation",
-    common_structure: Literal["concat", "joint"] = "concat",
     method: Literal["hc", "tabu", "mmhc"] = "hc",
     nbf: int = 15,
     delta_grid: Optional[np.ndarray] = None,
@@ -209,8 +182,10 @@ def compute_mdm_distance(
     """
     Compute pairwise MDM dissimilarity matrix for a cohort (stages 2–3).
 
-    Accepts raw time-series arrays or pre-fitted MDM objects from
-    :func:`fit_individual_structures`.
+    For the default ``lpl_separation`` metric, a shared DAG for each pair is
+    learned by greedy hill-climb maximising the sum of subject LPLs
+    (joint common structure). Accepts raw time-series arrays or pre-fitted
+    MDM objects from :func:`fit_individual_structures`.
     """
     if delta_grid is None:
         delta_grid = get_default_delta()
@@ -258,11 +233,8 @@ def compute_mdm_distance(
             individuals,
             metric_fn,
             metric_needs_common,
-            method,
             nbf,
             delta_grid,
-            resolved_names,
-            common_structure,
             self_lpl,
         )
         for i, j in pair_indices
@@ -303,7 +275,7 @@ def compute_mdm_distance(
             "individual_delta": ind_delta,
             "self_lpl": self_lpl,
             "nbf": nbf,
-            "common_structure": common_structure,
+            "common_structure": "joint",
             "node_names": resolved_names,
         },
     )
