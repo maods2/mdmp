@@ -25,7 +25,7 @@ When `mc_posterior='smoothed'`, the code uses smoothed moments (smt, sCt) togeth
 
 Diagramas em [Mermaid](https://mermaid.js.org/). Pré-visualize no GitHub, VS Code (extensão Mermaid), ou [mermaid.live](https://mermaid.live).
 
-## 1. Pipeline (`inds.pipeline.aggregate_individual_structures`)
+## 1. Pipeline (`inds.pipeline.compute_is`)
 
 ```mermaid
 flowchart TD
@@ -43,9 +43,9 @@ flowchart TD
   MC --> Filt
 ```
 
-Public API: `aggregate_individual_structures` only.
+Public API: `compute_is` only.
 
-## 2. Visão geral: `aggregate_individual_structures`
+## 2. Visão geral: `compute_is`
 
 ```mermaid
 flowchart LR
@@ -191,7 +191,7 @@ flowchart LR
 
 ## Referência no código
 
-- Orquestração: `aggregate_individual_structures` em `pipeline.py`
+- Orquestração: `compute_is` em `pipeline.py`
 - Voto + ciclos: `_vote_threshold_and_repair_cycles`, `_remove_lowest_freq_cycle_edge`
 - Refit estrutura fixa: `mdmp.model.refit_mdm_on_structure`
 - MC: `_monte_carlo_global_edge_beta`, `_monte_carlo_beta_samples_at_time`, `_sample_dlm_state_posterior`

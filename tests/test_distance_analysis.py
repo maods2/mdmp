@@ -9,7 +9,7 @@ import pytest
 
 from mdmp.group_analysis.distance import (
     bayes_factor_cut,
-    compute_mdm_distance,
+    compute_gs,
     nearest_neighbours,
     silhouette,
     suggest_clusters,
@@ -46,7 +46,7 @@ def _two_group_cohort() -> Tuple[List[np.ndarray], List[int]]:
 def dist_result():
     subjects, _ = _two_group_cohort()
     ids = [f"S{i}" for i in range(len(subjects))]
-    return compute_mdm_distance(subjects, subject_ids=ids, nbf=10, verbose=False)
+    return compute_gs(subjects, subject_ids=ids, nbf=10, verbose=False)
 
 
 def test_nearest_neighbours(dist_result):

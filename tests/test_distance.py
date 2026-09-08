@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from scipy.spatial.distance import squareform
 
-from mdmp import MDM, compute_mdm_distance, fit_individual_structures
+from mdmp import MDM, compute_gs, fit_individual_structures
 from mdmp.group_analysis.distance import MDMDistanceResult
 from mdmp.scoring import compute_logpl
 from mdmp.utils import get_default_delta
@@ -67,7 +67,7 @@ def two_group_cohort() -> Tuple[List[np.ndarray], List[int]]:
 
 
 def test_basic_distance_properties(three_subject_cohort):
-    dist = compute_mdm_distance(
+    dist = compute_gs(
         three_subject_cohort, method="hc", nbf=10, verbose=False
     )
     d = dist.matrix
@@ -79,7 +79,7 @@ def test_basic_distance_properties(three_subject_cohort):
 
 def test_two_group_separation(two_group_cohort):
     subjects, groups = two_group_cohort
-    dist = compute_mdm_distance(subjects, method="hc", nbf=10, verbose=False)
+    dist = compute_gs(subjects, method="hc", nbf=10, verbose=False)
     d = dist.matrix
     within = []
     across = []
@@ -95,13 +95,13 @@ def test_two_group_separation(two_group_cohort):
 
 
 def test_condensed_roundtrip(three_subject_cohort):
-    dist = compute_mdm_distance(three_subject_cohort, nbf=10, verbose=False)
+    dist = compute_gs(three_subject_cohort, nbf=10, verbose=False)
     assert len(dist.condensed) == 3 * 2 // 2
     np.testing.assert_allclose(squareform(dist.condensed), dist.matrix)
 
 
 def test_to_sparse_knn(three_subject_cohort):
-    dist = compute_mdm_distance(three_subject_cohort, nbf=10, verbose=False)
+    dist = compute_gs(three_subject_cohort, nbf=10, verbose=False)
     k = 2
     sparse = dist.to_sparse(knn=k)
     assert sparse.nnz <= 3 * k * 2  # symmetrised upper bound
@@ -111,7 +111,7 @@ def test_to_sparse_knn(three_subject_cohort):
 def test_delta_clip_self_distance_finite(three_subject_cohort):
     """Regression: delta grid values slightly above 1 must not yield inf self-LPL."""
     delta_grid = get_default_delta()
-    dist = compute_mdm_distance(
+    dist = compute_gs(
         three_subject_cohort, delta_grid=delta_grid, nbf=10, verbose=False
     )
     for lpl in dist.metadata["self_lpl"]:
@@ -129,28 +129,28 @@ def test_prefitted_mdms_inherit_subject_ids(two_group_cohort):
     subjects, _ = two_group_cohort
     ids = ["S0", "S1", "S2", "S3"]
     inds = fit_individual_structures(subjects, subject_ids=ids, nbf=10, verbose=False)
-    dist = compute_mdm_distance(inds, nbf=10, verbose=False)
+    dist = compute_gs(inds, nbf=10, verbose=False)
     assert dist.subject_ids == ids
 
 
 def test_prefitted_mdms_same_as_raw(two_group_cohort):
     subjects, _ = two_group_cohort
     inds = fit_individual_structures(subjects, method="hc", nbf=10, verbose=False)
-    d_raw = compute_mdm_distance(subjects, nbf=10, verbose=False)
-    d_prefit = compute_mdm_distance(inds, nbf=10, verbose=False)
+    d_raw = compute_gs(subjects, nbf=10, verbose=False)
+    d_prefit = compute_gs(inds, nbf=10, verbose=False)
     np.testing.assert_allclose(d_raw.matrix, d_prefit.matrix, rtol=1e-5, atol=1e-5)
 
 
 def test_result_individuals_populated(two_group_cohort):
     subjects, _ = two_group_cohort
-    dist = compute_mdm_distance(subjects, nbf=10, verbose=False)
+    dist = compute_gs(subjects, nbf=10, verbose=False)
     assert len(dist.individuals) == len(subjects)
     assert all(isinstance(m, MDM) for m in dist.individuals)
 
 
 def test_structural_hamming_metric(two_group_cohort):
     subjects, _ = two_group_cohort
-    dist = compute_mdm_distance(
+    dist = compute_gs(
         subjects, metric="structural_hamming", nbf=10, verbose=False
     )
     assert dist.metric == "structural_hamming"
@@ -164,7 +164,7 @@ def test_custom_metric_callable(two_group_cohort):
         del m_i, m_j, ctx
         return 1.0
 
-    dist = compute_mdm_distance(subjects, metric=always_one, nbf=10, verbose=False)
+    dist = compute_gs(subjects, metric=always_one, nbf=10, verbose=False)
     off = dist.matrix[np.triu_indices(dist.matrix.shape[0], k=1)]
     np.testing.assert_allclose(off, 1.0)
 
@@ -176,15 +176,15 @@ def test_strength_frobenius_same_topology(two_group_cohort):
     for m in inds[1:]:
         m.adj_mat = adj.copy()
 
-    dist_lpl = compute_mdm_distance(inds, metric="lpl_separation", nbf=10, verbose=False)
-    dist_str = compute_mdm_distance(inds, metric="strength_frobenius", nbf=10, verbose=False)
+    dist_lpl = compute_gs(inds, metric="lpl_separation", nbf=10, verbose=False)
+    dist_str = compute_gs(inds, metric="strength_frobenius", nbf=10, verbose=False)
     assert np.max(dist_lpl.matrix) < 1e-3 or np.mean(dist_lpl.matrix) < np.mean(dist_str.matrix)
 
 
 def test_to_similarity_and_to_frame(two_group_cohort):
     subjects, _ = two_group_cohort
     ids = ["S0", "S1", "S2", "S3"]
-    dist = compute_mdm_distance(subjects, subject_ids=ids, nbf=10, verbose=False)
+    dist = compute_gs(subjects, subject_ids=ids, nbf=10, verbose=False)
     sim = dist.to_similarity()
     np.testing.assert_allclose(np.diag(sim), 1.0)
     frame = dist.to_frame()
@@ -194,7 +194,7 @@ def test_to_similarity_and_to_frame(two_group_cohort):
 
 def test_joint_common_structure_runs(two_group_cohort):
     subjects, _ = two_group_cohort
-    dist = compute_mdm_distance(subjects, nbf=10, verbose=False)
+    dist = compute_gs(subjects, nbf=10, verbose=False)
     assert isinstance(dist, MDMDistanceResult)
     assert dist.metadata["common_structure"] == "joint"
     assert np.all(np.isfinite(dist.matrix))

@@ -8,7 +8,7 @@ def require_filt_for_plot(obj: object, *, plot_kw: str) -> object:
     if filt is None:
         raise TypeError(
             "This plot requires a model with Filt set. For an IS-aggregated graph, "
-            "pass fitted MDM instances to mdmp.group_analysis.aggregate_individual_structures, "
+            "pass fitted MDM instances to mdmp.group_analysis.compute_is, "
             "or use mdmp.model.MDM after fitting."
         )
     return filt
@@ -19,7 +19,7 @@ def require_data_for_plot(obj: object, *, plot_kw: str) -> object:
     if data is None:
         raise TypeError(
             "This plot requires model.data. For an IS-aggregated graph, pass fitted "
-            "MDM instances to mdmp.group_analysis.aggregate_individual_structures, "
+            "MDM instances to mdmp.group_analysis.compute_is, "
             "or use mdmp.model.MDM after fitting."
         )
     return data
@@ -30,6 +30,6 @@ def require_smoo_for_plot(obj: object) -> object:
     if sm is None:
         raise TypeError(
             "This plot requires smoothed output (model.Smoo). Use a fitted "
-            "mdmp.model.MDM, or pass fitted MDMs to aggregate_individual_structures."
+            "mdmp.model.MDM, or pass fitted MDMs to compute_is."
         )
     return sm

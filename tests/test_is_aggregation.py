@@ -13,7 +13,7 @@ import pytest
 from mdmp.group_analysis import (
     ISAggregatedMDMView,
     ISAggregationResult,
-    aggregate_individual_structures,
+    compute_is,
 )
 from mdmp.group_analysis.inds.voting import repair_dag_to_acyclic, vote_edge_frequencies
 from mdmp.plotting import plot_dag
@@ -36,7 +36,7 @@ def test_identical_dags_preserved():
     dag[0, 1] = 1
     dag[1, 2] = 1
     mats = [dag.copy() for _ in range(4)]
-    r = aggregate_individual_structures(mats, tau=0.5)
+    r = compute_is(mats, tau=0.5)
     np.testing.assert_array_equal(r.adj_mat, dag.astype(float))
     assert r.metadata["edge_frequencies"][0, 1] == 1.0
     assert r.metadata["edge_frequencies"][1, 2] == 1.0
@@ -63,9 +63,9 @@ def test_majority_threshold():
     e01[0, 1] = 1
     no_edge = np.zeros((n, n), dtype=int)
     mats = [e01.copy(), e01.copy(), no_edge]
-    r = aggregate_individual_structures(mats, tau=0.5)
+    r = compute_is(mats, tau=0.5)
     assert r.adj_mat[0, 1] == 1.0
-    r2 = aggregate_individual_structures(mats, tau=2 / 3)
+    r2 = compute_is(mats, tau=2 / 3)
     assert r2.adj_mat[0, 1] == 0.0
 
 
@@ -87,7 +87,7 @@ def test_cycle_broken_lowest_frequency():
     g4[0, 1] = 1
     g4[1, 2] = 1
     mats = [g1, g2, g3, g4]
-    r = aggregate_individual_structures(mats, tau=0.4)
+    r = compute_is(mats, tau=0.4)
     assert _is_dag(r.adj_mat)
     assert len(r.metadata["edges_removed_for_acyclicity"]) >= 1
     rem = r.metadata["edges_removed_for_acyclicity"][0]
@@ -102,41 +102,41 @@ def test_dataframe_node_names():
     d1.loc["a", "b"] = 1
     d2 = z.copy()
     d2.loc["a", "b"] = 1
-    r = aggregate_individual_structures([d1, d2], tau=0.5)
+    r = compute_is([d1, d2], tau=0.5)
     assert r.node_names == ["a", "b"]
     assert r.adj_mat[0, 1] == 1.0
 
 
 def test_empty_adj_list_raises():
     with pytest.raises(ValueError, match="at least one"):
-        aggregate_individual_structures([], tau=0.5)
+        compute_is([], tau=0.5)
 
 
 def test_shape_mismatch_raises():
     a = np.zeros((2, 2), dtype=int)
     b = np.zeros((3, 3), dtype=int)
     with pytest.raises(ValueError, match="same shape"):
-        aggregate_individual_structures([a, b], tau=0.5)
+        compute_is([a, b], tau=0.5)
 
 
 def test_invalid_tau_raises():
     a = np.zeros((2, 2), dtype=int)
     with pytest.raises(ValueError, match="tau"):
-        aggregate_individual_structures([a], tau=0.0)
+        compute_is([a], tau=0.0)
     with pytest.raises(ValueError, match="tau"):
-        aggregate_individual_structures([a], tau=1.5)
+        compute_is([a], tau=1.5)
 
 
 def test_non_binary_raises():
     a = np.zeros((2, 2), dtype=float)
     a[0, 1] = 0.5
     with pytest.raises(ValueError, match="binary"):
-        aggregate_individual_structures([a], tau=0.5)
+        compute_is([a], tau=0.5)
 
 
 def test_result_type():
     a = np.zeros((2, 2), dtype=int)
-    r = aggregate_individual_structures([a], tau=0.5, mc_n_samples=0)
+    r = compute_is([a], tau=0.5, mc_n_samples=0)
     assert isinstance(r, ISAggregatedMDMView)
     assert isinstance(r, ISAggregationResult)
     assert r.global_beta_mc is None
@@ -161,9 +161,13 @@ def test_plot_dag_accepts_is_aggregated_view():
     dag[0, 1] = 1
     dag[1, 2] = 1
     mats = [dag.copy() for _ in range(2)]
-    r = aggregate_individual_structures(mats, tau=0.5, node_names=["a", "b", "c"])
-    fig = plot_dag(r, plot_type="graph")
-    assert fig is not None
-    plt.close(fig)
+    r = compute_is(mats, tau=0.5, node_names=["a", "b", "c"])
+    try:
+        fig = plot_dag(r, plot_type="graph")
+        assert fig is not None
+        plt.close(fig)
+    except (ImportError, RuntimeError) as exc:
+        msg = str(exc).lower()
+        assert "pydot" in msg or "dot" in msg or "graphviz" in msg
     fig2 = plot_dag(r, plot_type="heatmap")
     plt.close(fig2)

@@ -8,13 +8,13 @@ Import from here or from :mod:`mdmp.group_analysis` / :mod:`mdmp` re-exports::
 
 
 
-    from mdmp import aggregate_individual_structures, ISAggregatedMDMView
+    from mdmp import compute_is, ISAggregatedMDMView
 
 """
 
 
 
-from .pipeline import aggregate_individual_structures
+from .pipeline import compute_is
 
 from .results import (
 
@@ -48,7 +48,7 @@ __all__ = [
 
     "MCPosteriorSource",
 
-    "aggregate_individual_structures",
+    "compute_is",
 
 ]
 

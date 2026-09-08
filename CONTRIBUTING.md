@@ -37,7 +37,7 @@ pip install -e .
 pip install -e ".[dev]"     # tests, ruff, black, bump-my-version, …
 ```
 
-Optional user extras still apply: `pip install -e ".[graphviz]"`, `".[umap]"`.
+Optional user extras still apply: `pip install -e ".[umap]"`. DAG graphs need the Graphviz `dot` binary on PATH (`pydot` is a core dependency).
 
 ## Running tests
 

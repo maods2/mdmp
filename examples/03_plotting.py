@@ -3,7 +3,7 @@ Plotting Functions Example
 
 Covers the public plotting entry points:
   plot_dag, plot_arcs, plot_marginal, plot_stream, plot_idag,
-  plot_anomalies, plot_dendrogram, plot_projection, plot_group_embedding
+  plot_anomalies, plot_dendrogram, plot_projection, plot_mdp
 
 Figures are saved under examples/plot_examples/ (Agg backend).
 """
@@ -18,14 +18,14 @@ import matplotlib.pyplot as plt
 
 from mdmp import (
     MDM,
-    compute_mdm_distance,
+    compute_gs,
     fit_individual_structures,
     load_dataset,
     plot_anomalies,
     plot_arcs,
     plot_dag,
     plot_dendrogram,
-    plot_group_embedding,
+    plot_mdp,
     plot_idag,
     plot_marginal,
     plot_projection,
@@ -57,7 +57,7 @@ def _save(fig, name: str) -> None:
 
 
 print("\n1. plot_dag (graph)...")
-_save(plot_dag(model, plot_type="graph", figsize=(10, 8), layout_seed=5), "dag_graph.png")
+_save(plot_dag(model, plot_type="graph", figsize=(10, 8)), "dag_graph.png")
 
 print("\n2. plot_dag (heatmap)...")
 _save(plot_dag(model, plot_type="heatmap", figsize=(8, 8)), "dag_heatmap.png")
@@ -122,7 +122,7 @@ for _ in range(4):
     subjects.append(x)
 
 inds = fit_individual_structures(subjects, method="hc", nbf=10, verbose=False)
-dist = compute_mdm_distance(inds, nbf=10, verbose=False)
+dist = compute_gs(inds, nbf=10, verbose=False)
 
 fig_d, ax_d = plt.subplots(figsize=(7, 4))
 plot_dendrogram(dist, ax=ax_d)
@@ -132,7 +132,7 @@ fig_p, ax_p = plt.subplots(figsize=(6, 5))
 plot_projection(dist, technique="mds", n_clusters=2, ax=ax_p)
 _save(fig_p, "projection.png")
 
-_save(plot_group_embedding(dist, technique="mds", n_clusters=2), "group_embedding.png")
+_save(plot_mdp(dist, technique="mds", n_clusters=2), "group_embedding.png")
 
 print("\n" + "=" * 60)
 print("All plots saved successfully!")

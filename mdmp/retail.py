@@ -1,23 +1,18 @@
-"""Retail CSV helpers for the MDMP library demo notebook.
+"""Bundled retail sales dataset and hierarchy helpers."""
 
-Adapted from ``mdm-experiment/retail_loader.py`` and
-``mdm-experiment/retail_aggregated_dags.py`` so the demo does not depend on
-the experiment tree on ``sys.path``.
-"""
-
-# from __future__ import annotations
+from __future__ import annotations
 
 import unicodedata
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
 
-DEFAULT_CSV = Path(__file__).resolve().parent / "data" / "MDM_retail_dataset.csv"
+_BUNDLED_CSV = Path(__file__).resolve().parent / "data" / "MDM_retail_dataset.csv"
 
 # Short English labels for individual SKU nodes (Graphviz / GS).
-SKU_DAG_LABELS: Dict[str, str] = {
+SKU_DAG_LABELS: dict[str, str] = {
     "Cerveja|Lata": "Beer-can",
     "Cerveja|Latao": "Beer-large",
     "Cerveja|Retornavel 250ml": "Beer-ret",
@@ -36,7 +31,7 @@ SKU_DAG_LABELS: Dict[str, str] = {
 }
 
 # C3 Product Line (hierarchy.type)
-C3_LABELS: Dict[str, str] = {
+C3_LABELS: dict[str, str] = {
     "Alcoolicas": "Alcoholic beverages",
     "Cereais Básicos": "Basic cereals",
     "Padaria": "Bakery",
@@ -47,7 +42,7 @@ C3_LABELS: Dict[str, str] = {
 }
 
 # C4 Product Type (hierarchy.line)
-C4_LABELS: Dict[str, str] = {
+C4_LABELS: dict[str, str] = {
     "Cerveja": "Beer",
     "Arroz": "Rice",
     "Feijao": "Beans",
@@ -62,10 +57,10 @@ C4_LABELS: Dict[str, str] = {
     "Chocolate": "Chocolate",
 }
 
-GROUP_LABELS: Dict[str, str] = {**C3_LABELS, **C4_LABELS}
+GROUP_LABELS: dict[str, str] = {**C3_LABELS, **C4_LABELS}
 
 # Shorter labels for aggregated DAG nodes.
-DAG_LABELS: Dict[str, str] = {
+DAG_LABELS: dict[str, str] = {
     "Alcoholic beverages": "Alcoholic",
     "Basic cereals": "Cereals",
     "Bakery": "Bakery",
@@ -88,7 +83,7 @@ DAG_LABELS: Dict[str, str] = {
 }
 
 # Fixed partition: equal N=3; Padaria joins Cereais / Leite / Conservas / biscoitos.
-FOOD_GROUP_MEMBERSHIP: Dict[str, List[str]] = {
+FOOD_GROUP_MEMBERSHIP: dict[str, list[str]] = {
     "Alcoolicas": [
         "Cerveja|Lata",
         "Cerveja|Latao",
@@ -117,24 +112,34 @@ FOOD_GROUP_MEMBERSHIP: Dict[str, List[str]] = {
 }
 
 
-def load_retail_raw(path: Optional[Path] = None) -> pd.DataFrame:
+def load_retail_raw(path: Path | None = None) -> pd.DataFrame:
     """Read the Mac Roman CSV with no header (183 x 16)."""
-    csv_path = Path(path) if path is not None else DEFAULT_CSV
+    csv_path = Path(path) if path is not None else _BUNDLED_CSV
     return pd.read_csv(csv_path, header=None, encoding="mac_roman")
 
 
-def parse_retail_dataset(
-    path: Optional[Path] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def load_retail(
+    path: Path | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Parse hierarchy + daily sales.
+    Load bundled retail daily sales and product hierarchy.
+
+    Parameters
+    ----------
+    path : path-like, optional
+        Override CSV path. Defaults to the file shipped in ``mdmp/data``.
 
     Returns
     -------
     sales : DataFrame
         Columns Time + one column per SKU (Line|Item). Shape (180, 16).
     hierarchy : DataFrame
-        Index = node_names; columns type, line, item.
+        Index = node names; columns type, line, item.
+
+    Examples
+    --------
+    >>> from mdmp import load_retail
+    >>> sales, hierarchy = load_retail()
     """
     raw = load_retail_raw(path)
     types = raw.iloc[0, 1:].astype(str).str.strip().tolist()
@@ -156,7 +161,10 @@ def parse_retail_dataset(
     return sales, hierarchy
 
 
-def english_group_label(value: str, labels: Optional[Dict[str, str]] = None) -> str:
+parse_retail_dataset = load_retail
+
+
+def english_group_label(value: str, labels: dict[str, str] | None = None) -> str:
     """Map Portuguese hierarchy keys to English labels (with ASCII fallback)."""
     mapping = labels if labels is not None else GROUP_LABELS
     if value in mapping:
@@ -198,25 +206,25 @@ def aggregate_by_level(
 def order_skus_by_level(
     hierarchy: pd.DataFrame,
     level_column: str,
-) -> List[str]:
+) -> list[str]:
     """Return SKU names ordered by hierarchy group (C3 type or C4 line)."""
     if level_column not in {"type", "line"}:
         raise ValueError("level_column must be 'type' or 'line'")
-    ordered: List[str] = []
+    ordered: list[str] = []
     for _, skus in hierarchy.groupby(level_column, sort=False).groups.items():
         ordered.extend(list(skus))
     return ordered
 
 
-def one_sku_per_type(hierarchy: pd.DataFrame) -> List[str]:
+def one_sku_per_type(hierarchy: pd.DataFrame) -> list[str]:
     """Pick the first SKU in each C3 type (shared nodes for monthly IS/VTS)."""
     return hierarchy.groupby("type", sort=False).head(1).index.tolist()
 
 
 def monthly_subjects(
     sales: pd.DataFrame,
-    node_names: Optional[Sequence[str]] = None,
-) -> Tuple[List[np.ndarray], List[str], List[str]]:
+    node_names: Sequence[str] | None = None,
+) -> tuple[list[np.ndarray], list[str], list[str]]:
     """
     Split the wide series into one (T_m x N) array per calendar month.
 
@@ -226,8 +234,8 @@ def monthly_subjects(
         node_names = [c for c in sales.columns if c != "Time"]
     node_names = list(node_names)
 
-    subjects: List[np.ndarray] = []
-    subject_ids: List[str] = []
+    subjects: list[np.ndarray] = []
+    subject_ids: list[str] = []
     months = sales["Time"].dt.to_period("M")
     for period, group in sales.groupby(months, sort=True):
         arr = group.loc[:, node_names].to_numpy(dtype=float)
@@ -238,8 +246,8 @@ def monthly_subjects(
 
 def food_group_subjects(
     sales: pd.DataFrame,
-    membership: Optional[Dict[str, List[str]]] = None,
-) -> Tuple[List[np.ndarray], List[str], List[str], Dict[str, List[str]]]:
+    membership: dict[str, list[str]] | None = None,
+) -> tuple[list[np.ndarray], list[str], list[str], dict[str, list[str]]]:
     """
     Build one (T x N) subject per food group with a shared column count N.
 
@@ -258,8 +266,8 @@ def food_group_subjects(
         raise KeyError(f"SKUs not found in sales columns: {missing}")
 
     node_names = [f"SKU{i + 1}" for i in range(n)]
-    subjects: List[np.ndarray] = []
-    subject_ids: List[str] = []
+    subjects: list[np.ndarray] = []
+    subject_ids: list[str] = []
     for sid, skus in groups.items():
         subjects.append(sales.loc[:, skus].to_numpy(dtype=float))
         subject_ids.append(sid)
@@ -271,9 +279,9 @@ def product_lag_subjects(
     sales: pd.DataFrame,
     *,
     n_lags: int = 3,
-    node_names: Optional[Sequence[str]] = None,
-    subject_ids: Optional[Sequence[str]] = None,
-) -> Tuple[List[np.ndarray], List[str], List[str]]:
+    node_names: Sequence[str] | None = None,
+    subject_ids: Sequence[str] | None = None,
+) -> tuple[list[np.ndarray], list[str], list[str]]:
     """
     One subject per SKU (no cross-product aggregation).
 
@@ -299,7 +307,7 @@ def product_lag_subjects(
         if len(node_names) != n_lags:
             raise ValueError(f"node_names length must equal n_lags={n_lags}")
 
-    subjects: List[np.ndarray] = []
+    subjects: list[np.ndarray] = []
     for sku in skus:
         y = sales[sku].to_numpy(dtype=float)
         panel = np.column_stack(
@@ -315,7 +323,7 @@ def cohort_summary(
     subjects: Sequence[np.ndarray],
     subject_ids: Sequence[str],
     node_names: Sequence[str],
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Compact shape / T statistics for sanity checks."""
     lengths = [int(s.shape[0]) for s in subjects]
     return {

@@ -17,12 +17,12 @@ from mdmp.group_analysis import (
     GlobalBetaMCResult,
     ISAggregatedMDMView,
     ISAggregationResult,
-    aggregate_individual_structures,
+    compute_is,
 )
 
 
 def _mc_aggregate(adjs, filt, *, tau: float = 0.5, T: int = 5, n_nodes: int = 2, **kwargs):
-    """Run MC via aggregate_individual_structures with mocked refit on G*."""
+    """Run MC via compute_is with mocked refit on G*."""
     filt_list = list(filt)
     call_idx = [0]
     node_names = kwargs.pop("node_names", None) or [f"n{i}" for i in range(n_nodes)]
@@ -50,7 +50,7 @@ def _mc_aggregate(adjs, filt, *, tau: float = 0.5, T: int = 5, n_nodes: int = 2,
         "mdmp.group_analysis.inds.refit.refit_mdm_on_structure",
         side_effect=_fake_refit,
     ):
-        return aggregate_individual_structures(
+        return compute_is(
             subjects,
             tau=tau,
             mc_refit_global_structure=True,
@@ -60,7 +60,7 @@ def _mc_aggregate(adjs, filt, *, tau: float = 0.5, T: int = 5, n_nodes: int = 2,
 
 def test_aggregate_global_beta_mc_none_for_adj_only():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
-    r = aggregate_individual_structures([e01], tau=0.5, mc_n_samples=0)
+    r = compute_is([e01], tau=0.5, mc_n_samples=0)
     assert isinstance(r, ISAggregatedMDMView)
     assert isinstance(r, ISAggregationResult)
     assert r.global_beta_mc is None
@@ -314,7 +314,7 @@ def test_mc_requires_refit_on_consensus():
         data=np.zeros((5, 2)),
     )
     with pytest.raises(ValueError, match="mc_refit_global_structure"):
-        aggregate_individual_structures(
+        compute_is(
             [m],
             tau=0.5,
             mc_n_samples=5,
@@ -338,7 +338,7 @@ def test_mdm_aggregate_population_mean_after_refit(mock_refit):
         _mdm_like(adj_mat=e01.copy(), Filt=shared, node_names=["a", "b"], data=np.zeros((T, n))),
         _mdm_like(adj_mat=e01.copy(), Filt=shared, node_names=["a", "b"], data=np.ones((T, n))),
     ]
-    r = aggregate_individual_structures(
+    r = compute_is(
         subjects,
         tau=0.5,
         mc_n_samples=40,
@@ -395,7 +395,7 @@ def test_mdm_aggregate_auto_pools_filt():
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
     adjs = [e01.copy(), e01.copy(), np.zeros((2, 2), dtype=int)]
-    r = aggregate_individual_structures(
+    r = compute_is(
         [
             _mdm_like(adj_mat=adjs[0], Filt=filt[0], node_names=["a", "b"], data=np.zeros((5, 2))),
             _mdm_like(adj_mat=adjs[1], Filt=filt[1], node_names=["a", "b"], data=np.zeros((5, 2))),
@@ -423,7 +423,7 @@ def test_plot_arcs_on_mdm_aggregate_view():
         node_names=["a", "b"],
         data=np.zeros((T, 2), dtype=float),
     )
-    r = aggregate_individual_structures(
+    r = compute_is(
         [m],
         tau=0.5,
         mc_n_samples=5,
@@ -453,7 +453,7 @@ def test_aggregate_from_mdm_like_objects_pool_filt():
         node_names=["a", "b"],
         data=np.ones((T, 2), dtype=float),
     )
-    r = aggregate_individual_structures(
+    r = compute_is(
         [m0, m1],
         tau=0.5,
         mc_n_samples=10,
@@ -477,7 +477,7 @@ def test_aggregate_accepts_generator_of_mdm_like():
             data=np.zeros((T, 2), dtype=float),
         )
 
-    r = aggregate_individual_structures(
+    r = compute_is(
         gen(), tau=0.5, mc_n_samples=5, rng=np.random.default_rng(0)
     )
     assert r.Filt is not None
@@ -507,7 +507,7 @@ def test_mdm_aggregate_auto_refit_on_consensus(mock_refit):
         node_names=["a", "b"],
         data=np.ones((T, 2), dtype=float),
     )
-    r = aggregate_individual_structures(
+    r = compute_is(
         [m0, m1],
         tau=0.5,
         mc_n_samples=10,
@@ -530,7 +530,7 @@ def test_mdm_aggregate_mc_rejects_no_refit():
         data=np.zeros((T, 2), dtype=float),
     )
     with pytest.raises(ValueError, match="mc_refit_global_structure"):
-        aggregate_individual_structures(
+        compute_is(
             [m],
             tau=0.5,
             mc_n_samples=10,
@@ -559,7 +559,7 @@ def test_mc_n_jobs_parallel_matches_serial():
 
 
 def test_aggregate_mdm_mc_covers_all_filter_times():
-    """aggregate_individual_structures MC uses every filter time index."""
+    """compute_is MC uses every filter time index."""
     e01 = np.array([[0, 1], [0, 0]], dtype=int)
     filt = _synth_filtered_n2_t5((2.0, 4.0, 100.0))
     T = 5
@@ -573,7 +573,7 @@ def test_aggregate_mdm_mc_covers_all_filter_times():
         "mdmp.group_analysis.inds.refit.refit_mdm_on_structure",
         return_value=SimpleNamespace(Filt=_add_rt_to_filt(filt[0]), Smoo={}),
     ):
-        r = aggregate_individual_structures(
+        r = compute_is(
             [m],
             tau=0.5,
             mc_n_samples=20,
@@ -595,4 +595,4 @@ def test_aggregate_mixed_mdm_and_adj_raises():
         data=np.zeros((3, 2)),
     )
     with pytest.raises(TypeError, match="pass either only fitted MDM"):
-        aggregate_individual_structures([m, e01], tau=0.5)
+        compute_is([m, e01], tau=0.5)

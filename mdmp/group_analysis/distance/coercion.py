@@ -37,7 +37,7 @@ def _subject_sequence_kind(subjects: Sequence[Any]) -> Literal["array", "mdm"]:
     if not any(flags):
         return "array"
     raise TypeError(
-        "fit_individual_structures / compute_mdm_distance: pass either only fitted "
+        "fit_individual_structures / compute_gs: pass either only fitted "
         "MDM instances or only raw time-series arrays, not a mix."
     )
 

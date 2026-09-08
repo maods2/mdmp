@@ -10,8 +10,21 @@ This package is a Python port of the R package 'mdmr'.
 from ._version import __version__
 from .anomaly import AnomalyDetectionResult, detect_anomalies
 from .datasets import (
+    C3_LABELS,
+    C4_LABELS,
+    DAG_LABELS,
+    SKU_DAG_LABELS,
+    aggregate_by_level,
+    cohort_summary,
+    food_group_subjects,
     list_datasets,
     load_dataset,
+    load_retail,
+    monthly_subjects,
+    one_sku_per_type,
+    order_skus_by_level,
+    parse_retail_dataset,
+    product_lag_subjects,
 )
 from .dlm import dlm_filter, dlm_smooth
 from .group_analysis import (
@@ -21,9 +34,9 @@ from .group_analysis import (
     MCPosteriorSource,
     MDMDistanceResult,
     VTSResult,
-    aggregate_individual_structures,
     bayes_factor_cut,
-    compute_mdm_distance,
+    compute_gs,
+    compute_is,
     compute_vts,
     fit_individual_structures,
     nearest_neighbours,
@@ -36,9 +49,9 @@ from .plotting import (
     plot_arcs,
     plot_dag,
     plot_dendrogram,
-    plot_group_embedding,
     plot_idag,
     plot_marginal,
+    plot_mdp,
     plot_projection,
     plot_stream,
     project_distance,
@@ -85,11 +98,24 @@ __all__ = [
     # Dataset loading functions
     "load_dataset",
     "list_datasets",
+    "load_retail",
+    "parse_retail_dataset",
+    "aggregate_by_level",
+    "cohort_summary",
+    "food_group_subjects",
+    "monthly_subjects",
+    "one_sku_per_type",
+    "order_skus_by_level",
+    "product_lag_subjects",
+    "C3_LABELS",
+    "C4_LABELS",
+    "DAG_LABELS",
+    "SKU_DAG_LABELS",
 
     # Group analysis (VTS + IS aggregation)
     "compute_vts",
     "VTSResult",
-    "aggregate_individual_structures",
+    "compute_is",
     "GlobalBetaMCResult",
     "ISAggregationResult",
     "ISAggregatedMDMView",
@@ -98,7 +124,7 @@ __all__ = [
 
     # Group-structure distance + projection
     "fit_individual_structures",
-    "compute_mdm_distance",
+    "compute_gs",
     "MDMDistanceResult",
     "nearest_neighbours",
     "silhouette",
@@ -107,6 +133,6 @@ __all__ = [
     "project_distance",
     "plot_projection",
     "plot_dendrogram",
-    "plot_group_embedding",
+    "plot_mdp",
 ]
 

@@ -1,7 +1,11 @@
 """
-Group-Structure (GS) Distance Example
+Compute GS (Group Structure) — ``fit_individual_structures`` + ``compute_gs``
 
-Fits per-subject MDMs, computes pairwise MDM distance, clusters subjects,
+Paper name: Compute GS. Python: ``fit_individual_structures`` then ``compute_gs``.
+The MDP view (paper: plot_mdp) is ``plot_mdp``.
+
+A *subject* is one observational unit with a multivariate series. This script
+fits per-subject MDMs, computes pairwise GS distance, clusters subjects,
 and saves a dendrogram (Agg backend).
 """
 
@@ -14,10 +18,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from mdmp import (
-    compute_mdm_distance,
+    compute_gs,
     fit_individual_structures,
     plot_dendrogram,
-    plot_group_embedding,
+    plot_mdp,
 )
 
 np.random.seed(42)
@@ -69,8 +73,8 @@ inds = fit_individual_structures(
 )
 print(f"  Fitted {len(inds)} MDMs; edges={[int(m.adj_mat.sum()) for m in inds]}")
 
-print("\n2. compute_mdm_distance...")
-dist = compute_mdm_distance(inds, nbf=10, verbose=False)
+print("\n2. compute_gs...")
+dist = compute_gs(inds, nbf=10, verbose=False)
 print("  Distance matrix:")
 print(np.round(dist.matrix, 3))
 
@@ -82,13 +86,13 @@ output_dir = Path(__file__).resolve().parent / "plot_examples"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 fig_d, ax_d = plt.subplots(figsize=(7, 4))
-plot_dendrogram(dist, ax=ax_d)
+plot_dendrogram(dist, n_clusters=2, ax=ax_d)
 dendro_path = output_dir / "gs_dendrogram.png"
 fig_d.savefig(dendro_path, dpi=150, bbox_inches="tight")
 plt.close(fig_d)
 print(f"\nSaved: {dendro_path}")
 
-fig_e = plot_group_embedding(dist, technique="mds", n_clusters=2)
+fig_e = plot_mdp(dist, technique="mds", n_clusters=2)
 embed_path = output_dir / "gs_group_embedding.png"
 fig_e.savefig(embed_path, dpi=150, bbox_inches="tight")
 plt.close(fig_e)

@@ -1,32 +1,15 @@
 """
-
 Group-level analyses for multi-subject multivariate time series.
 
+A *subject* (unit, individual) is one observational unit contributing a
+multivariate series of N nodes. Paper names and Python entry points:
 
-
-Subpackages
-
------------
-
-vts
-
-    Virtual Typical Subject (VTS): build a representative time series across
-
-    subjects (concatenation, mean-based, or median-based).
-
-inds
-
-    Individual Structure aggregation: combine subject-specific DAGs into
-
-    one global DAG via edge-frequency thresholding and acyclic repair; optional
-
-    Monte Carlo pooling of filtered DLM edge coefficients. The return value
-
-    (:class:`ISAggregatedMDMView`) mirrors key :class:`mdmp.model.MDM` attributes
-
-    for :mod:`mdmp.plotting` when ``time_series`` / ``plot_filt`` / etc. are supplied.
-
+- Compute VTS — :func:`compute_vts` (``vts``)
+- Compute IS — :func:`compute_is` (``inds``)
+- Compute GS — :func:`fit_individual_structures` then
+  :func:`compute_gs` (``distance``)
 """
+
 
 
 
@@ -72,7 +55,7 @@ from .inds import (
 
     MCPosteriorSource,
 
-    aggregate_individual_structures,
+    compute_is,
 
 )
 
@@ -86,7 +69,7 @@ from .distance import (
 
     bayes_factor_cut,
 
-    compute_mdm_distance,
+    compute_gs,
 
     fit_individual_structures,
 
@@ -124,7 +107,7 @@ __all__ = [
 
     "list_estimators",
 
-    "aggregate_individual_structures",
+    "compute_is",
 
     "ISAggregationResult",
 
@@ -140,7 +123,7 @@ __all__ = [
 
     "fit_individual_structures",
 
-    "compute_mdm_distance",
+    "compute_gs",
 
     "MDMDistanceResult",
 

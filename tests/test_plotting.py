@@ -5,6 +5,10 @@ Tests for plotting functions.
 import sys
 from unittest.mock import MagicMock, Mock, patch
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -35,20 +39,58 @@ def mock_mdm_model(sample_data):
         return model
 
 
+@pytest.fixture(autouse=True)
+def _close_figures():
+    yield
+    plt.close("all")
+
+
+def _plot_dag_graphviz_or_expect_missing(model, **kwargs):
+    """Call plot_dag (Graphviz default). Return the figure, or None if deps missing."""
+    from mdmp.plotting import plot_dag
+
+    try:
+        import pydot  # noqa: F401
+    except ImportError:
+        with pytest.raises(ImportError, match="pydot"):
+            plot_dag(model, **kwargs)
+        return None
+
+    try:
+        return plot_dag(model, **kwargs)
+    except RuntimeError as exc:
+        assert "dot" in str(exc).lower() or "graphviz" in str(exc).lower()
+        return None
+
+
 def test_plot_dag_does_not_crash(mock_mdm_model):
     """Test that plot_dag doesn't crash."""
     from mdmp.plotting import plot_dag
 
-    # Test graph plot
-    fig = plot_dag(mock_mdm_model, plot_type="graph")
-    assert fig is not None
+    fig = _plot_dag_graphviz_or_expect_missing(mock_mdm_model, plot_type="graph")
+    if fig is not None:
+        assert len(fig.axes) >= 1
 
-    # Test heatmap plot
     fig = plot_dag(mock_mdm_model, plot_type="heatmap")
     assert fig is not None
 
-    fig = plot_dag(mock_mdm_model, plot_type="graph", hierarchical=False, layout_seed=1)
+    fig = plot_dag(
+        mock_mdm_model,
+        plot_type="graph",
+        style="networkx",
+        hierarchical=False,
+        layout_seed=1,
+    )
     assert fig is not None
+
+
+def test_plot_dag_networkx_style(mock_mdm_model):
+    """NetworkX style remains available as an explicit alternative."""
+    from mdmp.plotting import plot_dag
+
+    fig = plot_dag(mock_mdm_model, plot_type="graph", style="networkx")
+    assert fig is not None
+    assert len(fig.axes) >= 1
 
 
 def test_plot_arcs_does_not_crash(mock_mdm_model):
@@ -127,25 +169,23 @@ def test_plot_marginal_smooth_and_labels(mock_mdm_model):
 
 def test_plot_dag_parameter_validation(mock_mdm_model):
     """Test plot_dag parameter validation."""
-    from mdmp.plotting import plot_dag
-
-    # Should work with custom node labels
-    fig = plot_dag(
+    fig = _plot_dag_graphviz_or_expect_missing(
         mock_mdm_model,
         node_labels=["Custom1", "Custom2"],
-        plot_type="graph"
+        plot_type="graph",
     )
-    assert fig is not None
+    if fig is not None:
+        assert fig is not None
 
 
 def test_plot_title_custom_and_none(mock_mdm_model):
     """Optional title= overrides defaults; None omits ax.set_title."""
     from mdmp.plotting import plot_dag, plot_marginal, plot_stream
 
-    fig = plot_dag(mock_mdm_model, plot_type="graph", title="Custom")
+    fig = plot_dag(mock_mdm_model, plot_type="graph", style="networkx", title="Custom")
     assert fig.axes[0].get_title() == "Custom"
 
-    fig = plot_dag(mock_mdm_model, plot_type="graph", title=None)
+    fig = plot_dag(mock_mdm_model, plot_type="graph", style="networkx", title=None)
     assert fig.axes[0].get_title() == ""
 
     fig = plot_dag(mock_mdm_model, plot_type="heatmap", title="Custom heat")
@@ -168,29 +208,20 @@ def test_plot_title_custom_and_none(mock_mdm_model):
 
 
 def test_plot_dag_graphviz_style(mock_mdm_model):
-    """Graphviz style renders when pydot + dot are available; else clear error."""
-    from mdmp.plotting import plot_dag
-
-    try:
-        import pydot  # noqa: F401
-    except ImportError:
-        with pytest.raises(ImportError, match="pydot"):
-            plot_dag(mock_mdm_model, style="graphviz")
+    """Default Graphviz style renders when pydot + dot are available; else clear error."""
+    fig = _plot_dag_graphviz_or_expect_missing(
+        mock_mdm_model,
+        node_labels=["A", "B"],
+    )
+    if fig is None:
         return
 
-    try:
-        fig = plot_dag(
-            mock_mdm_model,
-            node_labels=["A", "B"],
-            style="graphviz",
-        )
-    except RuntimeError as exc:
-        # pydot installed but Graphviz binary missing
-        assert "dot" in str(exc).lower() or "graphviz" in str(exc).lower()
-        return
-
-    assert fig is not None
     assert len(fig.axes) >= 1
+    fig = _plot_dag_graphviz_or_expect_missing(
+        mock_mdm_model, plot_type="graph", title="Custom"
+    )
+    if fig is not None:
+        assert fig.axes[0].get_title() == "Custom"
 
 
 def test_plot_dag_unknown_style(mock_mdm_model):

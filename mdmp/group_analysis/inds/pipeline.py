@@ -1,7 +1,7 @@
 """
 Individual Structure (inds) aggregation pipeline.
 
-Public entry point: :func:`aggregate_individual_structures`.
+Public entry point: :func:`compute_is`.
 
 Stages: validate → coerce → vote → repair DAG → optional refit → MC → assemble result.
 """
@@ -47,7 +47,7 @@ def prepare_and_validate(
 
     Filtered states come from fitted MDM ``Filt`` fields when present.
     Monte Carlo argument checks run later in
-    :func:`aggregate_individual_structures`.
+    :func:`compute_is`.
     """
     adj_mats_norm = _normalize_first_argument(adj_mats)
     (
@@ -323,7 +323,7 @@ def _finalize_mdm_view(
     )
 
 
-def aggregate_individual_structures(
+def compute_is(
     adj_mats: Sequence[Union[np.ndarray, pd.DataFrame, Any]],
     tau: float = 0.5,
     node_names: Optional[Sequence[str]] = None,
@@ -337,7 +337,7 @@ def aggregate_individual_structures(
     mc_n_jobs: Optional[int] = None,
 ) -> ISAggregatedMDMView:
     """
-    Aggregate subject-specific DAGs into one consensus DAG.
+    Compute IS: aggregate subject-specific DAGs into one consensus DAG.
 
     Pass binary adjacency matrices / DataFrames, or fitted :class:`~mdmp.model.MDM`
     instances.  MDM inputs run Monte Carlo (``mc_n_samples``, ``rng``) and build

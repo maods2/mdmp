@@ -19,7 +19,7 @@ class VTSResult:
         The VTS representation. Shape (T x N) for time series or (N,) for
         scalar summary, depending on method.
     method : str
-        Method used: "concatenation" or "mean".
+        Method used: "mean", "median", or "concatenation".
     n_subjects : int
         Number of subjects used.
     metadata : dict

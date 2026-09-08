@@ -1,18 +1,20 @@
 # MDMP Examples
 
 Runnable scripts live in this directory; Jupyter demos are under
-[`notebooks/`](notebooks/).
+[`notebooks/`](notebooks/). Public function names match the package; the paper
+calls the grouping methods **Compute VTS**, **Compute IS**, and **Compute GS**.
+A *subject* is one observational unit with a multivariate series (not necessarily a person).
 
 ## Scripts
 
-| Script | What it shows |
-|---|---|
-| `01_basic_usage.py` | Load a bundled dataset, fit MDM, inspect adj / DF / Filt / Smoo |
-| `02_structure_learning.py` | Compare `hc`, `tabu`, and `mmhc` |
-| `03_plotting.py` | All public plot APIs (DAG, arcs, marginal, stream, idag, anomalies, GS plots) |
-| `04_vts_usage.py` | Virtual Typical Subject (`compute_vts`) with list / 3D / DataFrame input |
-| `05_is_aggregation.py` | Individual Structure consensus via `aggregate_individual_structures` |
-| `06_gs_distance.py` | Per-subject fit → `compute_mdm_distance` → clusters / dendrogram |
+| Script | Paper name | What it shows |
+|---|---|---|
+| `01_basic_usage.py` | MDM (Group 1) | Load a bundled dataset, fit MDM, inspect adj / DF / Filt / Smoo |
+| `02_structure_learning.py` | MDM | Compare `hc`, `tabu`, and `mmhc` |
+| `03_plotting.py` | Groups 3–4 | All public plot APIs (DAG, arcs, marginal, stream, idag, anomalies, GS plots) |
+| `04_vts_usage.py` | Compute VTS | `compute_vts` with list / 3D / DataFrame input, then `MDM` |
+| `05_is_aggregation.py` | Compute IS | Consensus DAG via `compute_is` |
+| `06_gs_distance.py` | Compute GS | `fit_individual_structures` → `compute_gs` → `plot_mdp` (MDP) |
 
 ```bash
 python examples/01_basic_usage.py
@@ -29,11 +31,11 @@ Plotting scripts write figures under `examples/plot_examples/` (non-interactive 
 
 Canonical tours and case studies:
 
-- [`notebooks/01-mdmp-library-demo.ipynb`](notebooks/01-mdmp-library-demo.ipynb) — end-to-end retail demo
-- [`notebooks/05-is-aggregation.ipynb`](notebooks/05-is-aggregation.ipynb) — IS aggregation
-- [`notebooks/08-gs-distance-projection.ipynb`](notebooks/08-gs-distance-projection.ipynb) — GS distance / projection
-- [`notebooks/04-is-vs-vts-multi-individual.ipynb`](notebooks/04-is-vs-vts-multi-individual.ipynb) — IS vs VTS
-- [`notebooks/09-gs-clusters-then-vts-is.ipynb`](notebooks/09-gs-clusters-then-vts-is.ipynb) — GS clusters then VTS/IS
+- [`notebooks/01-mdmp-library-demo.ipynb`](notebooks/01-mdmp-library-demo.ipynb) — end-to-end retail demo (MDM + plots)
+- [`notebooks/05-is-aggregation.ipynb`](notebooks/05-is-aggregation.ipynb) — Compute IS
+- [`notebooks/08-gs-distance-projection.ipynb`](notebooks/08-gs-distance-projection.ipynb) — Compute GS / projection
+- [`notebooks/04-is-vs-vts-multi-individual.ipynb`](notebooks/04-is-vs-vts-multi-individual.ipynb) — Compute IS vs Compute VTS
+- [`notebooks/09-gs-clusters-then-vts-is.ipynb`](notebooks/09-gs-clusters-then-vts-is.ipynb) — Compute GS clusters, then VTS/IS per cluster
 
 Retail helpers and CSV ship beside the notebooks:
 `notebooks/retail_helpers.py`, `notebooks/data/MDM_retail_dataset.csv`.
@@ -62,5 +64,5 @@ examples need matplotlib; animation may need extra imageio/pillow deps.
 
 ## Further reading
 
-- Main package overview: [`../README.md`](../README.md)
+- Main package overview and Software Structure: [`../README.md`](../README.md)
 - API details: function / class docstrings in `mdmp/`

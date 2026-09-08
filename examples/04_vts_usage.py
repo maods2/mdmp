@@ -1,7 +1,10 @@
 """
-Virtual Typical Subject (VTS) Usage Example
+Compute VTS (Virtual Typical Subject) — ``compute_vts``
 
 VTS is implemented under ``mdmp.group_analysis.vts`` (also re-exported from ``mdmp``).
+Paper name: Compute VTS. Python: ``compute_vts``.
+
+A *subject* here is one observational unit with a (T_s x N) series (not necessarily a person).
 
 This example demonstrates:
 1. Creating multi-subject time series data

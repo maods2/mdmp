@@ -167,7 +167,7 @@ def _pair_worker(args: Tuple) -> Tuple[int, int, float]:
     return i, j, float(d)
 
 
-def compute_mdm_distance(
+def compute_gs(
     subjects: Sequence[Union[np.ndarray, Any]],
     *,
     metric: Union[str, MetricFn] = "lpl_separation",
@@ -180,7 +180,7 @@ def compute_mdm_distance(
     verbose: bool = True,
 ) -> MDMDistanceResult:
     """
-    Compute pairwise MDM dissimilarity matrix for a cohort (stages 2–3).
+    Compute GS: pairwise MDM dissimilarity matrix for a cohort (stages 2–3).
 
     For the default ``lpl_separation`` metric, a shared DAG for each pair is
     learned by greedy hill-climb maximising the sum of subject LPLs

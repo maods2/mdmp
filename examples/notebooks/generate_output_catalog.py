@@ -15,12 +15,12 @@ import matplotlib.pyplot as plt
 
 from mdmp import (
     MDM,
-    compute_mdm_distance,
+    compute_gs,
     fit_individual_structures,
     load_dataset,
     plot_anomalies,
     plot_dendrogram,
-    plot_group_embedding,
+    plot_mdp,
     plot_projection,
 )
 
@@ -56,7 +56,7 @@ for _ in range(4):
     subjects.append(x)
 
 inds = fit_individual_structures(subjects, method="hc", nbf=10, verbose=False)
-dist = compute_mdm_distance(inds, nbf=10, verbose=False)
+dist = compute_gs(inds, nbf=10, verbose=False)
 
 print("12. plot_dendrogram...")
 fig_d, ax_d = plt.subplots(figsize=(7, 4))
@@ -68,10 +68,10 @@ fig_p, ax_p = plt.subplots(figsize=(6, 5))
 plot_projection(dist, technique="mds", n_clusters=2, ax=ax_p)
 _save(fig_p, "13_plot_projection.png")
 
-print("14. plot_group_embedding...")
+print("14. plot_mdp...")
 _save(
-    plot_group_embedding(dist, technique="mds", n_clusters=2),
-    "14_plot_group_embedding.png",
+    plot_mdp(dist, technique="mds", n_clusters=2),
+    "14_plot_mdp.png",
 )
 
 print(f"Done. Catalog directory: {OUTPUT}")

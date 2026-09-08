@@ -9,20 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Public names `aggregate_individual_structures`, `compute_mdm_distance`, and
+  `plot_group_embedding`. Use `compute_is` (Compute IS), `compute_gs` (Compute GS),
+  and `plot_mdp` (MDP view) instead. No compatibility aliases.
 - Pairwise GS common-structure via time-stacked concatenation
-  (`common_structure="concat"`). `compute_mdm_distance` now always learns the
+  (`common_structure="concat"`). `compute_gs` now always learns the
   pairwise common DAG by joint LPL hill-climb; the `common_structure` argument
   has been removed.
+- Optional extra `mdmp[graphviz]`. `pydot` is a core dependency; install the
+  Graphviz ``dot`` binary separately.
 
 ### Added
 
+- Bundled retail sales CSV (`mdmp/data/MDM_retail_dataset.csv`) with
+  `load_retail()`, `load_dataset("retail")`, and hierarchy helpers
+  (`aggregate_by_level`, `food_group_subjects`, `DAG_LABELS`, …) exported from
+  `mdmp`. Notebooks and the README no longer need `retail_helpers` or `sys.path`.
 - Add notebook `09-gs-clusters-then-vts-is.ipynb`: fit MDM per subject, cluster with
   group-structure distance, then compute VTS and IS separately per cluster on
   retail demo data.
 - `plot_dag(..., style="graphviz")`: Graphviz ``dot`` rendering with circular
-  filled nodes and curved edge routing (requires optional `pydot` + Graphviz
-  ``dot`` binary; `pip install mdmp[graphviz]`).
-- `aggregate_individual_structures`: `mc_n_jobs` to parallelize Monte Carlo over filter
+  filled nodes and curved edge routing (requires the Graphviz ``dot`` binary).
+- `compute_is`: `mc_n_jobs` to parallelize Monte Carlo over filter
   time steps (`None` or `1` = serial, `-1` = all cores).
 - Add `mdmp.group_analysis.inds` subpackage (Individual Structure aggregation).
 - Add split entry points: `vote_individual_structures`, `refit_on_consensus`,
@@ -32,9 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `inds.pipeline` orchestration module and split `vote_edge_frequencies` /
   `repair_dag_to_acyclic` in `inds.voting`.
 - Add `ISAggregateOptions` and `aggregate_with_options` as a grouped alternative
-  to the many keyword-only arguments of `aggregate_individual_structures`.
+  to the many keyword-only arguments of `compute_is`.
 - Add `threshold_mode` (`"strict"` / `"inclusive"`) to edge voting in
-  `aggregate_individual_structures` and expose it in aggregation `metadata`.
+  `compute_is` and expose it in aggregation `metadata`.
 - Add Monte Carlo options: `mc_refit_global_structure`, `mc_posterior` (`filtered` /
   `smoothed`), `mc_contributors` (`individual_edge` / `all_subjects`), optional
   `data_per_subject` / `mc_refit_n_jobs`; `GlobalBetaMCResult` now includes
@@ -45,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `pool_filt_for_plotting` support to build plot-ready aggregated `Filt`
   structures from per-subject filtered outputs.
 - Add support for passing fitted MDM-like objects directly to
-  `aggregate_individual_structures`, reusing model adjacency/filter outputs and
+  `compute_is`, reusing model adjacency/filter outputs and
   deriving mean `time_series` when needed.
 - Add shared plotting input validators in `mdmp.plotting._input_checks`,
   plus test coverage for IS global-beta Monte Carlo and plotting integration.
@@ -60,12 +68,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove split IS entry points: `vote_individual_structures`,
   `run_inds_global_beta_mc`, `pool_conditional_filtered_states`, `as_inds_mdm_view`,
   `aggregate_with_options`, and `refit_on_consensus` from the public API.
-  Use `aggregate_individual_structures` only.
+  Use `compute_is` only.
 - Remove unused `BaseLearningAlgorithm.compute_score` and `_has_cycle`, and
   `mdmp.scoring.compute_structure_score` (only used by the removed method).
 
 ### Changed
 
+- Default `plot_dag(..., plot_type="graph")` style is Graphviz (`style="graphviz"`);
+  pass `style="networkx"` for the Matplotlib drawer. `pydot` is a core dependency
+  (the Graphviz ``dot`` binary is still a system requirement).
+- Rename public grouping/plot entry points to match the paper: Compute IS
+  (`compute_is`), Compute GS (`compute_gs`), MDP (`plot_mdp`). `compute_vts` and
+  `fit_individual_structures` are unchanged.
+- Document the public API in four Software Structure groups (General, Grouping /
+  Compute VTS·IS·GS, Graphical visualization, Results visualization), with a
+  glossary for *subject* (observational unit) aligned to the MDM paper.
+- `VTSResult.method` docstring now lists `"mean"`, `"median"`, and `"concatenation"`.
 - Set package version to `0.1.0` (intentional reset from `0.6.2` for the
   public/docs refresh).
 - Move Jupyter notebooks, `retail_helpers.py`, and retail CSV under
@@ -83,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `verbose=False`), raise the `pgmpy` logger to WARNING during structure
   learning and default `show_progress=False` so INFO messages such as
   datatype inference are not printed.
-- `aggregate_individual_structures`: `mc_refit_global_structure=None` (default) refits
+- `compute_is`: `mc_refit_global_structure=None` (default) refits
   on the consensus DAG when inputs are MDM-like; pass `False` for the previous
   individual-DAG filtered posterior path.
 - Global-beta Monte Carlo always runs at every filter time step ``0 … T-1``;
@@ -102,7 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plot-pooling helpers.
 - Speed up global-beta Monte Carlo: vectorized replicate sampling, edge coefficient
   index precomputation, and optional parallelism over time.
-- Simplify `aggregate_individual_structures`: inputs are adjacency matrices/DataFrames
+- Simplify `compute_is`: inputs are adjacency matrices/DataFrames
   or fitted MDMs only; strict edge voting is fixed; MDM inputs auto-run Monte Carlo
   (`mc_n_samples` default 500) and auto-build pooled `Filt` for `plot_arcs`; removed
   `threshold_mode`, `time_series`, `plot_filt` /
@@ -138,6 +156,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Align cluster colors in `plot_projection`, `plot_dendrogram`, and `plot_mdp`
+  so each hierarchical cluster keeps the same color in the scatter and the
+  dendrogram (`plot_dendrogram` now accepts `n_clusters` / `labels`). Singleton
+  and other pure-cluster dendrogram arms use that cluster color; mixed joins stay
+  gray.
 - Fix `plot_idag` so the animation heatmap only colors real edges from `row_names`
   and `adj_mat` (avoids intercept-on-diagonal and index-based mis-mapping).
 - Fix `build_design_matrix` when `adj_mat` uses floating dtypes (parameter counts
@@ -150,7 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `mdmp.group_analysis.distance` subpackage for group-structure (GS) pairwise
   subject dissimilarity.
 - Add `fit_individual_structures` to estimate one MDM per subject (workflow stage 1).
-- Add `compute_mdm_distance` for the pairwise separation matrix (stages 2–3),
+- Add `compute_gs` for the pairwise separation matrix (stages 2–3),
   accepting raw time-series arrays or pre-fitted MDM objects.
 - Add `MDMDistanceResult` with dense, labelled, sparse, linkage, and cluster-cutting
   helpers (`to_frame`, `to_sparse`, `to_linkage`, `cluster_labels`, `to_similarity`).
@@ -161,7 +184,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add proximity-analysis helpers: `nearest_neighbours`, `silhouette`,
   `suggest_clusters`, and `bayes_factor_cut`.
 - Add `mdmp.plotting.projection` with `project_distance`, `plot_projection`,
-  `plot_dendrogram`, and `plot_group_embedding` (MDS, non-metric MDS, t-SNE,
+  `plot_dendrogram`, and `plot_mdp` (MDS, non-metric MDS, t-SNE,
   Isomap, UMAP).
 - Add optional `[umap]` extra (`umap-learn`) for UMAP projection.
 - Add `notebooks/08-gs-distance-projection.ipynb` demonstrating the GS distance

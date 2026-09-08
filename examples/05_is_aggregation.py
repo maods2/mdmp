@@ -1,8 +1,11 @@
 """
-Individual Structure (IS) Aggregation Example
+Compute IS (Individual Structure) — ``compute_is``
 
+Paper name: Compute IS. Python: ``compute_is``.
+
+A *subject* is one observational unit contributing a DAG (here a synthetic adjacency).
 Builds a small set of subject adjacency matrices, aggregates them into a
-consensus DAG with ``aggregate_individual_structures``, and plots the result.
+consensus DAG, and plots the result.
 """
 
 from pathlib import Path
@@ -13,7 +16,7 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mdmp import aggregate_individual_structures, plot_dag
+from mdmp import compute_is, plot_dag
 
 np.random.seed(42)
 
@@ -49,7 +52,7 @@ for i, adj in enumerate(subjects):
     print(f"  subject {i}: {int(adj.sum())} edges")
 
 print("\nAggregating with tau=0.5 (mc_n_samples=0)...")
-result = aggregate_individual_structures(
+result = compute_is(
     subjects,
     tau=0.5,
     node_names=node_names,

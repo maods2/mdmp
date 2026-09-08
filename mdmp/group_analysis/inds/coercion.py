@@ -128,7 +128,7 @@ def _subject_sequence_kind(subjects: Sequence[Any]) -> Literal["adj", "mdm"]:
     if not any(flags):
         return "adj"
     raise TypeError(
-        "aggregate_individual_structures: pass either only fitted MDM instances "
+        "compute_is: pass either only fitted MDM instances "
         "(with adj_mat, Filt, node_names) or only adjacency matrices / DataFrames, "
         "not a mix."
     )
@@ -160,7 +160,7 @@ def _coerce_subjects_for_aggregation(
     ``posterior_per_subject`` / mean ``time_series`` from each model.
 
     ``posterior_per_subject`` is only accepted on split APIs (e.g.
-    :func:`aggregate_individual_structures`
+    :func:`compute_is`
     derives filters from MDMs only.
 
     Returns adjacency list, node names, **resolved** filtered states,

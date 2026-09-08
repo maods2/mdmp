@@ -79,7 +79,7 @@ def _build_pydot_dag(
         raise ImportError(
             "style='graphviz' requires the pydot package and a Graphviz "
             "installation (the `dot` binary on PATH). "
-            "Install with `pip install pydot` and Graphviz from "
+            "pydot is installed with mdmp; install Graphviz from "
             "https://graphviz.org/download/."
         ) from exc
 
@@ -184,7 +184,7 @@ def plot_dag(
     figsize: Optional[tuple] = None,
     layout_seed: Optional[int] = 0,
     *,
-    style: Literal["networkx", "graphviz"] = "networkx",
+    style: Literal["networkx", "graphviz"] = "graphviz",
     hierarchical: bool = True,
     level_gap: float = 1.0,
     node_size: float = 2000.0,
@@ -199,7 +199,7 @@ def plot_dag(
     ----------
     mdm_object
         Typically :class:`mdmp.model.MDM`, or :class:`mdmp.group_analysis.ISAggregatedMDMView`
-        / the return value of :func:`mdmp.group_analysis.aggregate_individual_structures`
+        / the return value of :func:`mdmp.group_analysis.compute_is`
         (needs ``adj_mat`` and optionally ``node_names``).
     node_labels : list of str, optional
         Custom node labels. If None, uses MDM node names.
@@ -224,10 +224,10 @@ def plot_dag(
     style : {"networkx", "graphviz"}, optional
         Graph rendering backend when ``plot_type="graph"``.
 
-        - ``"networkx"`` (default): Matplotlib + NetworkX drawing.
-        - ``"graphviz"``: Graphviz ``dot`` layout with circular filled nodes and
-          curved edge routing (publication style). Requires ``pydot`` and the
-          Graphviz ``dot`` binary.
+        - ``"graphviz"`` (default): Graphviz ``dot`` layout with circular filled
+          nodes and curved edge routing. Requires ``pydot`` (a core dependency)
+          and the Graphviz ``dot`` binary on PATH.
+        - ``"networkx"``: Matplotlib + NetworkX drawing.
     hierarchical : bool, optional
         If True (default), use layered layout for ``style="networkx"``
         (Graphviz ``dot`` positions when available via ``pygraphviz`` or

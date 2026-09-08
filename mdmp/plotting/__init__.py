@@ -10,7 +10,7 @@ from .dag import plot_dag
 from .parameters import plot_anomalies, plot_arcs, plot_marginal, plot_stream
 from .projection import (
     plot_dendrogram,
-    plot_group_embedding,
+    plot_mdp,
     plot_projection,
     project_distance,
 )
@@ -24,6 +24,6 @@ __all__ = [
     "plot_idag",
     "plot_projection",
     "plot_dendrogram",
-    "plot_group_embedding",
+    "plot_mdp",
     "project_distance",
 ]

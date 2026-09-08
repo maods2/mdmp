@@ -11,7 +11,7 @@ estimates time-varying parameters with Kalman filtering and smoothing
 - **Dynamic Parameter Estimation**: Estimate time-varying parameters using Kalman filtering and smoothing
 - **Discount Factor Selection**: Automatically select optimal discount factors for each node
 - **Parallel Processing**: Multiprocessing support for multi-core systems
-- **Visualization**: Plot DAGs, dynamic parameters, marginal posteriors, streams, and animated heatmaps
+- **Visualization**: Plot DAGs (Graphviz by default), dynamic parameters, marginal posteriors, streams, and animated heatmaps
 - **Anomaly detection**: Flag observations outside the one-step predictive interval (`detect_anomalies` / `plot_anomalies`)
 - **Virtual Typical Subject (VTS)**: Build a representative series from multi-subject data (mean, median, or concatenation), then fit MDM
 - **Individual Structure (IS)**: Aggregate per-subject DAGs into a consensus structure (edge voting + acyclic repair)
@@ -86,7 +86,6 @@ pip install mdmp
 Optional extras:
 
 ```bash
-pip install "mdmp[graphviz]"   # Graphviz DAG style (pydot + Graphviz binary)
 pip install "mdmp[umap]"       # UMAP embeddings for GS projection
 ```
 
@@ -107,6 +106,20 @@ pip install .
 
 For editable installs, tests, and linting, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+### Google Colab
+
+```python
+%pip install mdmp
+# DAG graph plots need the Graphviz system binary (not pip):
+!apt-get -qq update && apt-get -y install graphviz
+```
+
+Before the next PyPI release you can install from GitHub instead:
+
+```python
+%pip install git+https://github.com/maods2/mdmp.git
+```
+
 ## Requirements
 
 - Python >= 3.8
@@ -117,11 +130,16 @@ For editable installs, tests, and linting, see [`CONTRIBUTING.md`](CONTRIBUTING.
 - matplotlib >= 3.3.0
 - networkx >= 2.6.0
 - pgmpy >= 0.1.25
+- pydot >= 1.4
 - tqdm >= 4.60.0
+
+Graph DAG plots (`plot_dag(..., plot_type="graph")`) also need the Graphviz
+**`dot` binary** on PATH (system package, not pip). See
+[https://graphviz.org/download/](https://graphviz.org/download/). Use
+`style="networkx"` to draw with Matplotlib only.
 
 ### Optional Dependencies
 
-- **pydot** (+ Graphviz `dot` binary): `plot_dag(..., style="graphviz")` — `pip install mdmp[graphviz]`
 - **umap-learn**: UMAP technique in group-structure projection — `pip install mdmp[umap]`
 - **notears**: `method="notears"` structure learning (not on PyPI):
 
@@ -131,45 +149,49 @@ pip install git+https://github.com/xunzheng/notears.git
 
 ## Example Usage
 
-The full end-to-end tour is the retail case study notebook
+After `pip install mdmp` (or the Colab cells above), the blocks below are
+copy-pasteable. Bundled datasets ship inside the package; there is no local
+CSV or helper script to add to `sys.path`.
+
+The full end-to-end tour is
 [`examples/notebooks/01-mdmp-library-demo.ipynb`](examples/notebooks/01-mdmp-library-demo.ipynb).
-Below is a condensed walkthrough of the same flow: load retail sales, fit an MDM,
-and plot the learned DAG. Group-analysis examples (VTS, IS, GS clustering) live in
-`examples/notebooks/` — see especially
+Group-analysis examples (VTS, IS, GS clustering) live in `examples/notebooks/`
+— see especially
 [`examples/notebooks/09-gs-clusters-then-vts-is.ipynb`](examples/notebooks/09-gs-clusters-then-vts-is.ipynb).
 
-### 1. Load retail sales and fit MDM
-
-Helpers and the CSV ship under `examples/notebooks/` (`retail_helpers.py`, `data/`).
+### 1. List and load a bundled series
 
 ```python
-import sys
-from pathlib import Path
+from mdmp import MDM, list_datasets, load_dataset, load_retail
+from mdmp import DAG_LABELS, aggregate_by_level, plot_arcs, plot_dag
 
-import pandas as pd
-from mdmp import MDM, plot_dag, plot_arcs
+list_datasets()
+data = load_dataset("covid_regional_timeseries")
+```
 
-sys.path.insert(0, str(Path("examples/notebooks").resolve()))
-from retail_helpers import parse_retail_dataset, aggregate_by_level, DAG_LABELS
+`load_dataset("retail")` returns the retail **sales** panel only. Use
+`load_retail()` when you also need the product hierarchy.
 
-sales, hierarchy = parse_retail_dataset()
+### 2. Load retail sales, fit MDM, and plot
+
+```python
+sales, hierarchy = load_retail()
 # Sum SKUs within each product line (C3), then learn structure
 c3 = aggregate_by_level(sales, hierarchy, "type")
 model = MDM(c3, method="hc", verbose=True, n_jobs=-1)
-```
 
-`model` holds the inferred DAG (`adj_mat`), filtering/smoothing estimates (`Filt`, `Smoo`),
-and local scores. Structure-learning methods include `"hc"`, `"tabu"`, and `"mmhc"`.
-
-### 2. Plot the DAG and dynamic arcs
-
-```python
 plot_dag(model, plot_type="graph", node_labels=DAG_LABELS)
 plot_arcs(model, plot_type="connections", distribution="filt", ci_level=0.95)
 ```
 
-For bundled sample series without the retail CSV, you can also use
-`load_dataset("covid_regional_timeseries")` or `load_dataset("mdmr_test_data")`.
+`plot_dag(..., plot_type="graph")` needs the Graphviz `dot` binary (Colab: the
+`apt-get` line above). Use `style="networkx"` or `plot_type="heatmap"` if `dot`
+is not installed.
+
+`model` holds the inferred DAG (`adj_mat`), filtering/smoothing estimates (`Filt`, `Smoo`),
+and local scores. Structure-learning methods include `"hc"`, `"tabu"`, and `"mmhc"`.
+
+You can also load `load_dataset("mdmr_test_data")` for a small 4-node test series.
 
 ---
 
@@ -185,9 +207,10 @@ plot_dag(model, plot_type="graph")
 
 ![DAG Graph](plot_examples/dag_graph.png)
 
-> Displays the structure as a directed acyclic graph with nodes and directed edges.
+> Displays the structure as a directed acyclic graph (Graphviz `dot` by default).
 
 - The `plot_type` argument selects the plot to display. Either `"graph"` for a directed acyclic graph with arrows or `"heatmap"` for a matrix view.
+- Graph plots use Graphviz by default (`style="graphviz"`). Pass `style="networkx"` for the Matplotlib drawer. Graphviz needs the `dot` binary on PATH.
 
 ```python
 plot_dag(model, plot_type="heatmap")
@@ -195,7 +218,7 @@ plot_dag(model, plot_type="heatmap")
 
 ![DAG Heatmap](plot_examples/dag_heatmap.png)
 
-- There are other arguments to personalize the graph output like `edge_color`, `node_color`, and `node_labels`.
+- There are other arguments to personalize the graph output like `edge_color`, `node_color`, `node_labels`, and `style`.
 
 ### Arcs Over Time
 
@@ -240,7 +263,9 @@ plot_idag(
 
 ![Animated Heatmap](plot_examples/animated_heatmap.gif)
 
-> Each tile represents the magnitude of a dynamic parameter at each time step. This animation captures the temporally varying intensity of connections in the network structure.
+> Each colored tile is a learned parent→child coefficient at that time step.
+> Cells with no edge in `adj_mat` are left empty (masked). Pass
+> `show_intercepts=True` to put intercepts on the diagonal.
 
 - The `mdm_object` argument requires an object of class `MDM` as returned by `MDM()`.
 - `output_gif` is the name of the output file. Must end with `.gif`. Default is `"mdm_dynamic.gif"`.
@@ -248,6 +273,7 @@ plot_idag(
 - `width` (in inches) of each frame. Default is `6`.
 - `height` (in inches) of each frame. Default is `6`.
 - `dpi` is the resolution (dots per inch) for saved frames. Default is `100`.
+- `show_intercepts` places intercept (`beta0`) values on the diagonal. Default is `False`.
 
 ### Stream Plot for a Node
 
@@ -308,24 +334,24 @@ fig = plot_anomalies(model, series=0, ci_level=0.95)
 
 ### Group-structure plots
 
-After computing a pairwise GS distance (`compute_mdm_distance`), visualize subject
+After computing a pairwise GS distance (`compute_gs`), visualize subject
 similarity with a dendrogram, a 2D projection, or both side by side:
 
 ```python
 from mdmp import (
     fit_individual_structures,
-    compute_mdm_distance,
+    compute_gs,
     plot_dendrogram,
     plot_projection,
-    plot_group_embedding,
+    plot_mdp,
 )
 
 individuals = fit_individual_structures(subjects, method="hc", verbose=False)
-dist = compute_mdm_distance(individuals, verbose=False)
+dist = compute_gs(individuals, verbose=False)
 
-plot_dendrogram(dist)
+plot_dendrogram(dist, n_clusters=2)
 plot_projection(dist, technique="mds", n_clusters=2)
-plot_group_embedding(dist, technique="mds", n_clusters=2)
+plot_mdp(dist, technique="mds", n_clusters=2)
 ```
 
 ![Dendrogram](plot_examples/dendrogram.png)
@@ -336,7 +362,7 @@ plot_group_embedding(dist, technique="mds", n_clusters=2)
 
 - `plot_dendrogram`: hierarchical clustering of subjects from the GS distance.
 - `plot_projection`: 2D embedding (`mds`, `nmds`, `tsne`, …) with optional cluster coloring.
-- `plot_group_embedding`: projection scatter and dendrogram in one figure.
+- `plot_mdp`: projection scatter and dendrogram in one figure.
 
 ---
 
@@ -403,7 +429,7 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 
 ### Plotting Functions
 
-1. **`plot_dag()`**: Plot DAG structure as graph or heatmap
+1. **`plot_dag()`**: Plot DAG structure as graph (Graphviz by default) or heatmap
 2. **`plot_arcs()`**: Plot dynamic parameters over time
 3. **`plot_marginal()`**: Plot marginal posterior for a target node
 4. **`plot_stream()`**: Plot parent contributions to a child node
@@ -411,7 +437,7 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 6. **`plot_anomalies()`**: Observed series vs predictive mean/interval with anomaly markers
 7. **`plot_dendrogram()`**: Hierarchical clustering dendrogram from GS distance
 8. **`plot_projection()`**: 2D embedding scatter of subjects from GS distance
-9. **`plot_group_embedding()`**: Side-by-side projection + dendrogram
+9. **`plot_mdp()`**: Side-by-side projection + dendrogram
 
 ### Group analysis (`mdmp.group_analysis`)
 
@@ -435,14 +461,14 @@ model = MDM(result.vts_data, method="hc")
 Implementation lives under `mdmp.group_analysis.inds`.
 
 ```python
-from mdmp import aggregate_individual_structures, plot_arcs, plot_dag
+from mdmp import compute_is, plot_arcs, plot_dag
 
 # Adjacency-only → consensus DAG (no Monte Carlo, no pooled Filt)
-result = aggregate_individual_structures(list_of_adj_mats, tau=0.5, mc_n_samples=0)
+result = compute_is(list_of_adj_mats, tau=0.5, mc_n_samples=0)
 fig = plot_dag(result)
 
 # Fitted MDMs → consensus DAG + Monte Carlo on G* + pooled Filt for plot_arcs
-result = aggregate_individual_structures(list_of_mdm_models, tau=0.5)
+result = compute_is(list_of_mdm_models, tau=0.5)
 # Optional: mc_n_jobs=-1 parallelizes MC over time steps; mc_refit_n_jobs for refit/smoothing
 fig2 = plot_arcs(result, plot_type="connections")
 # result.global_beta_mc — inferential edge coefficients; not the same as pooled Filt
@@ -451,11 +477,11 @@ fig2 = plot_arcs(result, plot_type="connections")
 **Group-structure (GS) distance** — per-subject MDM estimates and pairwise dissimilarity for clustering / embedding (`mdmp.group_analysis.distance`):
 
 ```python
-from mdmp import fit_individual_structures, compute_mdm_distance, plot_group_embedding
+from mdmp import fit_individual_structures, compute_gs, plot_mdp
 
 inds = fit_individual_structures(subjects)          # stage 1
-dist = compute_mdm_distance(inds)                   # stages 2–3
-fig = plot_group_embedding(dist, technique="nmds")    # stage 5
+dist = compute_gs(inds)                   # stages 2–3
+fig = plot_mdp(dist, technique="nmds")    # stage 5
 ```
 
 See `examples/04_vts_usage.py`, `examples/05_is_aggregation.py`, `examples/06_gs_distance.py`,

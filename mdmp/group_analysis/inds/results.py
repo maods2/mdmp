@@ -247,10 +247,10 @@ ISPlotAdapter = ISAggregatedMDMView
 @dataclass
 class ISAggregateOptions:
     """
-    Bundles keyword-only arguments for :func:`aggregate_individual_structures`.
+    Bundles keyword-only arguments for :func:`compute_is`.
 
     Mirrors keyword-only arguments of
-    :func:`~mdmp.group_analysis.inds.pipeline.aggregate_individual_structures`
+    :func:`~mdmp.group_analysis.inds.pipeline.compute_is`
     (not exported from the public package API).
 
     ``mc_refit_global_structure=None`` selects auto mode: refit on G* for
