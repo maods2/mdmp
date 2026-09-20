@@ -17,12 +17,8 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mdmp import (
-    compute_gs,
-    fit_individual_structures,
-    plot_dendrogram,
-    plot_mdp,
-)
+from mdmp.group_analysis import compute_gs, fit_individual_structures
+from mdmp.plotting import plot_dendrogram, plot_mdp
 
 np.random.seed(42)
 

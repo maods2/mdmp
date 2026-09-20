@@ -4,11 +4,11 @@ Individual Structure (inds) aggregation across subjects.
 
 
 
-Import from here or from :mod:`mdmp.group_analysis` / :mod:`mdmp` re-exports::
+Import from here or from :mod:`mdmp.group_analysis`::
 
 
 
-    from mdmp import compute_is, ISAggregatedMDMView
+    from mdmp.group_analysis import compute_is, ISAggregatedMDMView
 
 """
 

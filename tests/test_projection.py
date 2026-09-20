@@ -16,9 +16,9 @@ from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from scipy.spatial.distance import squareform
 
-from mdmp import compute_gs, project_distance
+from mdmp.group_analysis import compute_gs
 from mdmp.group_analysis.distance.types import MDMDistanceResult
-from mdmp.plotting import plot_dendrogram, plot_mdp, plot_projection
+from mdmp.plotting import plot_dendrogram, plot_mdp, plot_projection, project_distance
 from mdmp.plotting.projection import (
     MIXED_CLUSTER_COLOR,
     _cluster_color_map,

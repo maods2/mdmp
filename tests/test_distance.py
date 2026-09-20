@@ -9,8 +9,9 @@ import numpy as np
 import pytest
 from scipy.spatial.distance import squareform
 
-from mdmp import MDM, compute_gs, fit_individual_structures
+from mdmp.group_analysis import compute_gs, fit_individual_structures
 from mdmp.group_analysis.distance import MDMDistanceResult
+from mdmp.model import MDM
 from mdmp.scoring import compute_logpl
 from mdmp.utils import get_default_delta
 
@@ -202,7 +203,9 @@ def test_joint_common_structure_runs(two_group_cohort):
 
 def test_additive_scope_existing_apis_unchanged():
     """Smoke test: core public entry points still exist with expected signatures."""
-    from mdmp import dlm_filter, compute_logpl, select_discount_factors, StructureLearner
+    from mdmp.dlm import dlm_filter
+    from mdmp.scoring import select_discount_factors
+    from mdmp.structure import StructureLearner
 
     assert callable(dlm_filter)
     assert callable(compute_logpl)

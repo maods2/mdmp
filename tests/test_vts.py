@@ -6,8 +6,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mdmp import MDM, VTSResult, compute_vts, validate_multi_subject_data
+from mdmp.group_analysis import VTSResult, compute_vts, validate_multi_subject_data
 from mdmp.group_analysis.vts import align_subjects, prepare_multi_subject_data
+from mdmp.model import MDM
 
 
 @pytest.fixture

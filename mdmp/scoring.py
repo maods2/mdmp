@@ -100,6 +100,10 @@ def select_discount_factors(
     }
 
 
+# Alias to match R package function name
+CDELT = select_discount_factors  # R: CDELT
+
+
 def _select_best_deltas(
     lpldet: np.ndarray,
     delta: np.ndarray,
@@ -286,4 +290,11 @@ def optimize_local_score(
     # Return negated value (since we're minimizing negative logpl, we want to maximize)
     # result.fun is the minimum negative logpl, so -result.fun is the maximum logpl
     return (-result.fun, result.x)
+
+
+__all__ = [
+    "select_discount_factors",
+    "CDELT",
+    "compute_logpl",
+]
 

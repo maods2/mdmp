@@ -31,14 +31,14 @@ Plotting scripts write figures under `examples/plot_examples/` (non-interactive 
 
 Canonical tours and case studies:
 
-- [`notebooks/01-mdmp-library-demo.ipynb`](notebooks/01-mdmp-library-demo.ipynb) — end-to-end retail demo (MDM + plots)
+- [`notebooks/01-mdmp-library-demo.ipynb`](notebooks/01-mdmp-library-demo.ipynb) — supermarket sales scenario (15 SKUs, class/family hierarchy, progressive MDM)
 - [`notebooks/05-is-aggregation.ipynb`](notebooks/05-is-aggregation.ipynb) — Compute IS
 - [`notebooks/08-gs-distance-projection.ipynb`](notebooks/08-gs-distance-projection.ipynb) — Compute GS / projection
 - [`notebooks/04-is-vs-vts-multi-individual.ipynb`](notebooks/04-is-vs-vts-multi-individual.ipynb) — Compute IS vs Compute VTS
 - [`notebooks/09-gs-clusters-then-vts-is.ipynb`](notebooks/09-gs-clusters-then-vts-is.ipynb) — Compute GS clusters, then VTS/IS per cluster
 
-Retail helpers and CSV ship beside the notebooks:
-`notebooks/retail_helpers.py`, `notebooks/data/MDM_retail_dataset.csv`.
+Retail sales and hierarchy load from the package (`load_retail()` / `mdmp.data`);
+there is no local CSV or helper script beside the notebooks.
 
 Static plot catalog assets live in `notebooks/output/` (numbered `01`–`14`).
 Regenerate the newer anomaly/GS assets with:

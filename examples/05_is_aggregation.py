@@ -16,7 +16,8 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mdmp import compute_is, plot_dag
+from mdmp.group_analysis import compute_is
+from mdmp.plotting import plot_dag
 
 np.random.seed(42)
 

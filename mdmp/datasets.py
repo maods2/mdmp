@@ -9,44 +9,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from .retail import (
-    C3_LABELS,
-    C4_LABELS,
-    DAG_LABELS,
-    FOOD_GROUP_MEMBERSHIP,
-    SKU_DAG_LABELS,
-    aggregate_by_level,
-    cohort_summary,
-    english_group_label,
-    food_group_subjects,
-    load_retail,
-    monthly_subjects,
-    one_sku_per_type,
-    order_skus_by_level,
-    parse_retail_dataset,
-    product_lag_subjects,
-)
+from .retail import load_retail
 
 __all__ = [
     "list_datasets",
     "load_dataset",
     "load_mdmr_test_data",
     "load_covid_regional_timeseries",
-    "load_retail",
-    "parse_retail_dataset",
-    "aggregate_by_level",
-    "cohort_summary",
-    "english_group_label",
-    "food_group_subjects",
-    "monthly_subjects",
-    "one_sku_per_type",
-    "order_skus_by_level",
-    "product_lag_subjects",
-    "C3_LABELS",
-    "C4_LABELS",
-    "DAG_LABELS",
-    "FOOD_GROUP_MEMBERSHIP",
-    "SKU_DAG_LABELS",
 ]
 
 
@@ -170,7 +139,7 @@ def load_dataset(name: str) -> pd.DataFrame:
         DataFrame containing the requested dataset.
 
         For ``"retail"`` this is the sales panel only (Time + SKU columns).
-        Use :func:`load_retail` when you also need the product hierarchy.
+        Use :func:`mdmp.retail.load_retail` when you also need the product hierarchy.
 
     Raises
     ------

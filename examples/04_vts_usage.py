@@ -1,7 +1,7 @@
 """
 Compute VTS (Virtual Typical Subject) — ``compute_vts``
 
-VTS is implemented under ``mdmp.group_analysis.vts`` (also re-exported from ``mdmp``).
+VTS is implemented under ``mdmp.group_analysis.vts`` (also re-exported from ``mdmp.group_analysis``).
 Paper name: Compute VTS. Python: ``compute_vts``.
 
 A *subject* here is one observational unit with a (T_s x N) series (not necessarily a person).
@@ -15,7 +15,9 @@ This example demonstrates:
 import numpy as np
 import pandas as pd
 
-from mdmp import MDM, compute_vts, load_dataset
+from mdmp.datasets import load_dataset
+from mdmp.group_analysis import compute_vts
+from mdmp.model import MDM
 
 # Set random seed for reproducibility
 np.random.seed(42)

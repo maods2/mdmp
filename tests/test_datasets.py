@@ -7,16 +7,15 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from mdmp import (
+from mdmp.datasets import list_datasets, load_dataset
+from mdmp.retail import (
+    _BUNDLED_CSV,
     DAG_LABELS,
     aggregate_by_level,
     food_group_subjects,
-    list_datasets,
-    load_dataset,
     load_retail,
     parse_retail_dataset,
 )
-from mdmp.retail import _BUNDLED_CSV
 
 
 def test_list_datasets_includes_retail():

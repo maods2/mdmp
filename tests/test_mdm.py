@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mdmp import MDM
+from mdmp.model import MDM
 
 # Create fake pgmpy module for testing when pgmpy is not installed
 if 'pgmpy' not in sys.modules:

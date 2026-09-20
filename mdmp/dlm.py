@@ -214,6 +214,11 @@ def dlm_smooth(
     }
 
 
+# Aliases to match R package function names
+dlm_filt = dlm_filter  # R: dlm_filt
+dlm_smoo = dlm_smooth  # R: dlm_smoo
+
+
 def _initialize_dlm_arrays(
     Yt: np.ndarray,
     Ft: np.ndarray,
@@ -489,4 +494,12 @@ def _update_filtering_step(
         0.5 * np.log(np.pi * nt[i - 1] * Qt[i]) -
         ((nt[i - 1] + 1) / 2) * np.log(1 + (1 / nt[i - 1]) * et ** 2 / Qt[i])
     )
+
+
+__all__ = [
+    "dlm_filter",
+    "dlm_smooth",
+    "dlm_filt",
+    "dlm_smoo",
+]
 

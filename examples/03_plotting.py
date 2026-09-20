@@ -16,18 +16,17 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mdmp import (
-    MDM,
-    compute_gs,
-    fit_individual_structures,
-    load_dataset,
+from mdmp.datasets import load_dataset
+from mdmp.group_analysis import compute_gs, fit_individual_structures
+from mdmp.model import MDM
+from mdmp.plotting import (
     plot_anomalies,
     plot_arcs,
     plot_dag,
     plot_dendrogram,
-    plot_mdp,
     plot_idag,
     plot_marginal,
+    plot_mdp,
     plot_projection,
     plot_stream,
 )

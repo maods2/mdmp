@@ -99,7 +99,7 @@ def test_mdm_with_progress(sample_data):
         sys.modules['pgmpy'] = pgmpy_mock
         sys.modules['pgmpy.estimators'] = pgmpy_mock.estimators
 
-    from mdmp import MDM
+    from mdmp.model import MDM
 
     # Use small dataset for faster tests
     small_data = sample_data[:30, :2]  # 30 time points, 2 nodes

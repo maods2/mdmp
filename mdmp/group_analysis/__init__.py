@@ -11,8 +11,7 @@ multivariate series of N nodes. Paper names and Python entry points:
 """
 
 
-
-
+from ..validation import validate_multi_subject_data
 from .vts import (
 
     ConcatenationStrategy,
@@ -136,6 +135,8 @@ __all__ = [
     "suggest_clusters",
 
     "bayes_factor_cut",
+
+    "validate_multi_subject_data",
 
 ]
 

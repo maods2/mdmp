@@ -13,16 +13,10 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mdmp import (
-    MDM,
-    compute_gs,
-    fit_individual_structures,
-    load_dataset,
-    plot_anomalies,
-    plot_dendrogram,
-    plot_mdp,
-    plot_projection,
-)
+from mdmp.datasets import load_dataset
+from mdmp.group_analysis import compute_gs, fit_individual_structures
+from mdmp.model import MDM
+from mdmp.plotting import plot_anomalies, plot_dendrogram, plot_mdp, plot_projection
 
 HERE = Path(__file__).resolve().parent
 OUTPUT = HERE / "output"

@@ -8,7 +8,8 @@ and compares the learned DAGs on a bundled dataset.
 import numpy as np
 import pandas as pd
 
-from mdmp import MDM, load_dataset
+from mdmp.datasets import load_dataset
+from mdmp.model import MDM
 
 np.random.seed(42)
 

@@ -153,7 +153,8 @@ After `pip install mdmp` (or the Colab cells above), the blocks below are
 copy-pasteable. Bundled datasets ship inside the package; there is no local
 CSV or helper script to add to `sys.path`.
 
-The full end-to-end tour is
+A supermarket sales walkthrough — 15 products, the nested class / family / SKU
+hierarchy, and progressive MDM analysis — is
 [`examples/notebooks/01-mdmp-library-demo.ipynb`](examples/notebooks/01-mdmp-library-demo.ipynb).
 Group-analysis examples (VTS, IS, GS clustering) live in `examples/notebooks/`
 — see especially
@@ -162,8 +163,10 @@ Group-analysis examples (VTS, IS, GS clustering) live in `examples/notebooks/`
 ### 1. List and load a bundled series
 
 ```python
-from mdmp import MDM, list_datasets, load_dataset, load_retail
-from mdmp import DAG_LABELS, aggregate_by_level, plot_arcs, plot_dag
+from mdmp.model import MDM
+from mdmp.datasets import list_datasets, load_dataset
+from mdmp.retail import DAG_LABELS, aggregate_by_level, load_retail
+from mdmp.plotting import plot_arcs, plot_dag
 
 list_datasets()
 data = load_dataset("covid_regional_timeseries")
@@ -319,7 +322,8 @@ plot_marginal(mdm_object=model, distribution="smoo", target_node=0, scale_series
 Flag observations outside the MDM one-step Student-t predictive band and plot them:
 
 ```python
-from mdmp import detect_anomalies, plot_anomalies
+from mdmp.anomaly import detect_anomalies
+from mdmp.plotting import plot_anomalies
 
 result = detect_anomalies(model, ci_level=0.95)          # all nodes
 df = detect_anomalies(model, series="Y1", output="dataframe")
@@ -338,13 +342,8 @@ After computing a pairwise GS distance (`compute_gs`), visualize subject
 similarity with a dendrogram, a 2D projection, or both side by side:
 
 ```python
-from mdmp import (
-    fit_individual_structures,
-    compute_gs,
-    plot_dendrogram,
-    plot_projection,
-    plot_mdp,
-)
+from mdmp.group_analysis import fit_individual_structures, compute_gs
+from mdmp.plotting import plot_dendrogram, plot_projection, plot_mdp
 
 individuals = fit_individual_structures(subjects, method="hc", verbose=False)
 dist = compute_gs(individuals, verbose=False)
@@ -441,12 +440,13 @@ model = MDM(data, method="tabu", tabu_length=50, max_iter=1000, verbose=True)
 
 ### Group analysis (`mdmp.group_analysis`)
 
-Group-level tools live under **`mdmp.group_analysis`**: **VTS** (Virtual Typical Subject — representative time series), **IS** (Individual Structure — aggregate subject DAGs), and **distance** (pairwise subject dissimilarity / group-structure method). The root package also re-exports the main entry points.
+Group-level tools live under **`mdmp.group_analysis`**: **VTS** (Virtual Typical Subject — representative time series), **IS** (Individual Structure — aggregate subject DAGs), and **distance** (pairwise subject dissimilarity / group-structure method).
 
 **Virtual Typical Subject (VTS)** — multi-subject multivariate time series:
 
 ```python
-from mdmp import compute_vts, MDM
+from mdmp.group_analysis import compute_vts
+from mdmp.model import MDM
 
 # Data: list of (T_s x N) arrays, 3D (I x k x N), or DataFrame with subject_id
 result = compute_vts(data, method="mean")      # Mean-based: avg per subject, then across
@@ -461,7 +461,8 @@ model = MDM(result.vts_data, method="hc")
 Implementation lives under `mdmp.group_analysis.inds`.
 
 ```python
-from mdmp import compute_is, plot_arcs, plot_dag
+from mdmp.group_analysis import compute_is
+from mdmp.plotting import plot_arcs, plot_dag
 
 # Adjacency-only → consensus DAG (no Monte Carlo, no pooled Filt)
 result = compute_is(list_of_adj_mats, tau=0.5, mc_n_samples=0)
@@ -477,7 +478,8 @@ fig2 = plot_arcs(result, plot_type="connections")
 **Group-structure (GS) distance** — per-subject MDM estimates and pairwise dissimilarity for clustering / embedding (`mdmp.group_analysis.distance`):
 
 ```python
-from mdmp import fit_individual_structures, compute_gs, plot_mdp
+from mdmp.group_analysis import fit_individual_structures, compute_gs
+from mdmp.plotting import plot_mdp
 
 inds = fit_individual_structures(subjects)          # stage 1
 dist = compute_gs(inds)                   # stages 2–3
@@ -493,7 +495,7 @@ See `examples/04_vts_usage.py`, `examples/05_is_aggregation.py`, `examples/06_gs
 
 ### Core Functions
 
-#### `mdmp.MDM`
+#### `mdmp.model.MDM`
 
 Main model class for fitting MDM models.
 
@@ -518,8 +520,8 @@ Structure learning algorithms.
 Full documentation is available in the docstrings. To view:
 
 ```python
-import mdmp
-help(mdmp.MDM)
+from mdmp.model import MDM
+help(MDM)
 ```
 
 Release notes live in [`CHANGELOG.md`](CHANGELOG.md). Contributor setup, tests,

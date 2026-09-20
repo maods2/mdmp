@@ -191,7 +191,8 @@ def detect_anomalies(
 
     Examples
     --------
-    >>> from mdmp import MDM, detect_anomalies
+    >>> from mdmp.model import MDM
+    >>> from mdmp.anomaly import detect_anomalies
     >>> import numpy as np
     >>> rng = np.random.default_rng(0)
     >>> y = rng.normal(size=(40, 2))
@@ -306,3 +307,10 @@ def detect_anomalies(
             }
             rows.append(row)
     return pd.DataFrame(rows)
+
+
+__all__ = [
+    "AnomalyDetectionResult",
+    "detect_anomalies",
+]
+

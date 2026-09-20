@@ -508,7 +508,8 @@ def plot_anomalies(
 
     Examples
     --------
-    >>> from mdmp import MDM, plot_anomalies  # doctest: +SKIP
+    >>> from mdmp.model import MDM  # doctest: +SKIP
+    >>> from mdmp.plotting import plot_anomalies  # doctest: +SKIP
     >>> fig = plot_anomalies(model, series=0, ci_level=0.95)  # doctest: +SKIP
     """
     if series is None:

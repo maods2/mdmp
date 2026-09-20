@@ -138,7 +138,7 @@ def load_retail(
 
     Examples
     --------
-    >>> from mdmp import load_retail
+    >>> from mdmp.retail import load_retail
     >>> sales, hierarchy = load_retail()
     """
     raw = load_retail_raw(path)
@@ -336,3 +336,22 @@ def cohort_summary(
         "T_max": max(lengths) if lengths else 0,
         "shapes": [tuple(s.shape) for s in subjects],
     }
+
+
+__all__ = [
+    "SKU_DAG_LABELS",
+    "C3_LABELS",
+    "C4_LABELS",
+    "DAG_LABELS",
+    "load_retail",
+    "parse_retail_dataset",
+    "aggregate_by_level",
+    "cohort_summary",
+    "food_group_subjects",
+    "monthly_subjects",
+    "one_sku_per_type",
+    "order_skus_by_level",
+    "product_lag_subjects",
+    "english_group_label",
+]
+
